@@ -1,0 +1,6 @@
+{
+  "name": "Vardhman Opsup",
+  "description": "Operation & Medical Material Supplier Management System - Stock control, invoices, delivery challans, vendor/hospital ledgers, and PDF reports.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
