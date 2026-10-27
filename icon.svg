@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d9488" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f8fafc" />
+      <stop offset="100%" stop-color="#f1f5f9" />
+    </linearGradient>
+  </defs>
+  <!-- Background with subtle border -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)"/>
+  <rect x="12" y="12" width="488" height="488" rx="100" stroke="#cbd5e1" stroke-width="4" stroke-dasharray="16 8"/>
+
+  <!-- Geometric shield / supply box -->
+  <rect x="116" y="116" width="280" height="280" rx="48" fill="url(#primaryGrad)"/>
+  
+  <!-- Medical Plus & Logistics arrows -->
+  <!-- Cross horizontal -->
+  <rect x="176" y="226" width="160" height="60" rx="14" fill="#ffffff"/>
+  <!-- Cross vertical -->
+  <rect x="226" y="176" width="60" height="160" rx="14" fill="#ffffff"/>
+
+  <!-- V Initial in the center -->
+  <path d="M236 244 L256 276 L276 244" stroke="#0d9488" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Small accent dots -->
+  <circle cx="160" cy="160" r="14" fill="#38bdf8" />
+  <circle cx="352" cy="160" r="14" fill="#38bdf8" />
+  <circle cx="160" cy="352" r="14" fill="#38bdf8" />
+  <circle cx="352" cy="352" r="14" fill="#38bdf8" />
+</svg>
