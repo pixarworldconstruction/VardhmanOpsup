@@ -15,6 +15,7 @@ import {
   ArrowUpDown,
 } from 'lucide-react';
 import { formatCurrency, formatDate, isNearExpiry } from '../../utils/formatters';
+import { ConfirmModal } from '../common/ConfirmModal';
 
 interface ProductsViewProps {
   onOpenNewProduct: () => void;
@@ -29,6 +30,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [showLowStockOnly, setShowLowStockOnly] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [quickAdjustModal, setQuickAdjustModal] = useState<{
     product: Product;
     amount: number;
@@ -313,11 +315,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 
                           {/* Delete */}
                           <button
-                            onClick={() => {
-                              if (confirm(`Delete product ${p.name}? This will remove it from inventory.`)) {
-                                deleteProduct(p.id);
-                              }
-                            }}
+                            type="button"
+                            onClick={() => setProductToDelete(p)}
                             className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition"
                             title="Delete Product"
                           >
@@ -421,6 +420,22 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Confirmation Modal for Deletion */}
+      <ConfirmModal
+        isOpen={!!productToDelete}
+        title="Delete Product"
+        message={`Are you sure you want to delete "${productToDelete?.name}"?`}
+        subMessage="This item will be permanently removed from your catalog and inventory records."
+        confirmLabel="Delete Product"
+        onConfirm={() => {
+          if (productToDelete) {
+            deleteProduct(productToDelete.id);
+            setProductToDelete(null);
+          }
+        }}
+        onClose={() => setProductToDelete(null)}
+      />
     </div>
   );
 };

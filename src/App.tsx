@@ -23,10 +23,11 @@ import { InvoicePrintModal } from './components/sales/InvoicePrintModal';
 import { ChallanModal } from './components/challan/ChallanModal';
 import { ChallanPrintModal } from './components/challan/ChallanPrintModal';
 import { FirebaseSyncModal } from './components/FirebaseSyncModal';
+import { Flame } from 'lucide-react';
 import { Product, Hospital, Vendor, SalesInvoice, DeliveryChallan } from './types';
 
 function MainApp() {
-  const { activeView, invoices, challans } = useApp();
+  const { activeView, invoices, challans, firebaseStatus } = useApp();
 
   // Modal states
   const [isStoreModalOpen, setIsStoreModalOpen] = useState(false);
@@ -123,6 +124,31 @@ function MainApp() {
 
           {/* Main Workspace Content */}
           <main className="flex-1 p-3 sm:p-6 pb-24 md:pb-8 max-w-7xl mx-auto w-full overflow-x-hidden">
+            {/* Firestore Setup Alert Banner */}
+            {firebaseStatus === 'error' && (
+              <div className="mb-4 rounded-xl border border-orange-200 bg-orange-50/90 p-3.5 text-orange-950 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in">
+                <div className="flex items-start gap-2.5">
+                  <div className="p-1 rounded-lg bg-orange-600 text-white shrink-0 mt-0.5">
+                    <Flame className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-orange-950">
+                      Cloud Firestore: Security Rules Required to Store Data Online
+                    </p>
+                    <p className="text-[11px] text-orange-900/80 mt-0.5">
+                      Your changes are safe locally, but Firebase Firestore requires security rules before allowing writes. Paste the rules into Firebase Console to prevent data from resetting.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsFirebaseModalOpen(true)}
+                  className="shrink-0 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-semibold text-xs px-3.5 py-1.5 transition shadow-2xs text-center"
+                >
+                  Copy Firestore Rules
+                </button>
+              </div>
+            )}
+
             {/* Low-stock Automated Alert Banner */}
             <LowStockBanner onOpenPurchaseModal={() => setIsPurchaseModalOpen(true)} />
 

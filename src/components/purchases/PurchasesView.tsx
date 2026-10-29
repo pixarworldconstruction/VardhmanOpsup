@@ -18,6 +18,7 @@ import {
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { exportPurchaseVoucherPDF } from '../../utils/pdfGenerator';
 import { PurchasePrintModal } from './PurchasePrintModal';
+import { ConfirmModal } from '../common/ConfirmModal';
 
 interface PurchasesViewProps {
   onOpenNewPurchase: () => void;
@@ -28,6 +29,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ onOpenNewPurchase 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('ALL');
   const [selectedPurchaseForPrint, setSelectedPurchaseForPrint] = useState<PurchaseTransaction | null>(null);
+  const [purchaseToDelete, setPurchaseToDelete] = useState<{ purchase: PurchaseTransaction; totalUnits: number } | null>(null);
 
   const filteredPurchases = purchases.filter((p) => {
     const matchesSearch =
@@ -246,11 +248,8 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ onOpenNewPurchase 
 
                           {/* Delete and reverse stock */}
                           <button
-                            onClick={() => {
-                              if (confirm(`Delete purchase voucher ${p.purchaseNumber}? This will deduct the ${totalUnits} units back from inventory stock.`)) {
-                                deletePurchase(p.id);
-                              }
-                            }}
+                            type="button"
+                            onClick={() => setPurchaseToDelete({ purchase: p, totalUnits })}
                             className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition"
                             title="Delete and reverse stock"
                           >
@@ -271,6 +270,22 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ onOpenNewPurchase 
       <PurchasePrintModal
         purchase={selectedPurchaseForPrint}
         onClose={() => setSelectedPurchaseForPrint(null)}
+      />
+
+      {/* Confirmation Modal for Purchase Deletion */}
+      <ConfirmModal
+        isOpen={!!purchaseToDelete}
+        title="Delete Purchase Voucher"
+        message={`Are you sure you want to delete purchase voucher "${purchaseToDelete?.purchase.purchaseNumber}" from ${purchaseToDelete?.purchase.vendorName}?`}
+        subMessage={`This will automatically reverse inventory and deduct ${purchaseToDelete?.totalUnits || 0} units back from current stock.`}
+        confirmLabel="Delete & Reverse Stock"
+        onConfirm={() => {
+          if (purchaseToDelete) {
+            deletePurchase(purchaseToDelete.purchase.id);
+            setPurchaseToDelete(null);
+          }
+        }}
+        onClose={() => setPurchaseToDelete(null)}
       />
     </div>
   );

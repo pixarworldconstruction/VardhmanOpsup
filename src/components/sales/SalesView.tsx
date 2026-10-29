@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { exportInvoicePDF } from '../../utils/pdfGenerator';
+import { ConfirmModal } from '../common/ConfirmModal';
 
 interface SalesViewProps {
   onOpenNewInvoice: () => void;
@@ -30,6 +31,7 @@ export const SalesView: React.FC<SalesViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [paymentModalInvoice, setPaymentModalInvoice] = useState<SalesInvoice | null>(null);
+  const [invoiceToDelete, setInvoiceToDelete] = useState<SalesInvoice | null>(null);
   const [payAmount, setPayAmount] = useState<number>(0);
   const [payMode, setPayMode] = useState<'Bank Transfer' | 'Cheque' | 'Cash' | 'UPI'>('Bank Transfer');
 
@@ -258,11 +260,8 @@ export const SalesView: React.FC<SalesViewProps> = ({
 
                           {/* Delete */}
                           <button
-                            onClick={() => {
-                              if (confirm(`Delete invoice ${inv.invoiceNumber}? This will restore the sold quantities back to inventory.`)) {
-                                deleteInvoice(inv.id);
-                              }
-                            }}
+                            type="button"
+                            onClick={() => setInvoiceToDelete(inv)}
                             className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition"
                             title="Delete and restore stock"
                           >
@@ -336,6 +335,22 @@ export const SalesView: React.FC<SalesViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Confirmation Modal for Sales Invoice Deletion */}
+      <ConfirmModal
+        isOpen={!!invoiceToDelete}
+        title="Delete Sales Invoice"
+        message={`Are you sure you want to delete invoice "${invoiceToDelete?.invoiceNumber}" for ${invoiceToDelete?.hospitalName}?`}
+        subMessage="This action will delete the invoice and automatically restore all billed item quantities back to your inventory stock."
+        confirmLabel="Delete & Restore Stock"
+        onConfirm={() => {
+          if (invoiceToDelete) {
+            deleteInvoice(invoiceToDelete.id);
+            setInvoiceToDelete(null);
+          }
+        }}
+        onClose={() => setInvoiceToDelete(null)}
+      />
     </div>
   );
 };

@@ -1,0 +1,133 @@
+{
+  "entities": {
+    "products": {
+      "title": "Product",
+      "description": "Operation & medical items, equipment, and surgical supplies tracked for inventory",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "brand": { "type": "string" },
+        "batchNumber": { "type": "string" },
+        "expiryDate": { "type": "string" },
+        "purchasePrice": { "type": "number" },
+        "sellingPrice": { "type": "number" },
+        "currentStock": { "type": "number" },
+        "minStockAlert": { "type": "number" },
+        "unit": { "type": "string" },
+        "location": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name", "sellingPrice", "currentStock"]
+    },
+    "vendors": {
+      "title": "Vendor",
+      "description": "Medical & surgical wholesalers and manufacturers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "contactPerson": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "address": { "type": "string" },
+        "gstNumber": { "type": "string" },
+        "totalPurchased": { "type": "number" },
+        "balancePayable": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "hospitals": {
+      "title": "Hospital",
+      "description": "Hospitals, nursing homes, and clinic stores supplied",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "contactPerson": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "address": { "type": "string" },
+        "gstNumber": { "type": "string" },
+        "totalBilled": { "type": "number" },
+        "balanceReceivable": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "purchases": {
+      "title": "PurchaseTransaction",
+      "description": "Inward purchase invoices from suppliers updating stock levels",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "vendorId": { "type": "string" },
+        "vendorName": { "type": "string" },
+        "purchaseDate": { "type": "string" },
+        "totalAmount": { "type": "number" },
+        "paymentStatus": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "invoiceNumber", "vendorId", "totalAmount"]
+    },
+    "invoices": {
+      "title": "SalesInvoice",
+      "description": "Sales invoices billed to hospitals with tax calculations reducing stock",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "hospitalId": { "type": "string" },
+        "hospitalName": { "type": "string" },
+        "invoiceDate": { "type": "string" },
+        "totalAmount": { "type": "number" },
+        "balanceAmount": { "type": "number" },
+        "paymentStatus": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "invoiceNumber", "hospitalId", "totalAmount"]
+    },
+    "challans": {
+      "title": "DeliveryChallan",
+      "description": "Delivery challans generated for dispatch to hospitals",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "challanNumber": { "type": "string" },
+        "hospitalId": { "type": "string" },
+        "hospitalName": { "type": "string" },
+        "challanDate": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "challanNumber", "hospitalId"]
+    },
+    "storeProfile": {
+      "title": "StoreProfile",
+      "description": "Company profile for Vardhman Opsup with billing and drug license details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "address": { "type": "string" },
+        "phone": { "type": "string" },
+        "gstNumber": { "type": "string" },
+        "drugLicenseNumber": { "type": "string" }
+      },
+      "required": ["name"]
+    }
+  },
+  "firestore": {
+    "/vardhman_opsup/{docId}": {
+      "schema": {
+        "type": "object"
+      },
+      "description": "Stores state collections and master documents for Vardhman Opsup"
+    }
+  }
+}

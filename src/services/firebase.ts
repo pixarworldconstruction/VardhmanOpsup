@@ -1,12 +1,18 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import {
+  getFirestore,
+  doc,
+  setDoc,
+  getDoc,
+  onSnapshot,
+  Firestore,
+  Unsubscribe as FirestoreUnsubscribe,
+} from 'firebase/firestore';
+import {
   getDatabase,
   ref,
   set,
-  get,
-  onValue,
   Database,
-  Unsubscribe,
 } from 'firebase/database';
 import {
   Product,
@@ -26,7 +32,7 @@ export const defaultFirebaseConfig = {
   storageBucket: "vardhman-opsup.firebasestorage.app",
   messagingSenderId: "445624141957",
   appId: "1:445624141957:web:19c14b97cd98ec627f41ec",
-  // Standard Realtime Database URL
+  // Standard Realtime Database URL fallback if RTDB is also used
   databaseURL: "https://vardhman-opsup-default-rtdb.firebaseio.com",
 };
 
@@ -41,7 +47,8 @@ export const setStoredDatabaseUrl = (url: string) => {
 };
 
 let firebaseApp: FirebaseApp | null = null;
-let database: Database | null = null;
+let firestoreDb: Firestore | null = null;
+let realtimeDb: Database | null = null;
 
 export const getFirebaseInstance = () => {
   try {
@@ -57,15 +64,23 @@ export const getFirebaseInstance = () => {
       }
     }
 
-    if (!database && firebaseApp) {
-      const customUrl = getStoredDatabaseUrl();
-      database = getDatabase(firebaseApp, customUrl);
+    if (!firestoreDb && firebaseApp) {
+      firestoreDb = getFirestore(firebaseApp);
     }
 
-    return { app: firebaseApp, db: database };
+    if (!realtimeDb && firebaseApp) {
+      try {
+        const customUrl = getStoredDatabaseUrl();
+        realtimeDb = getDatabase(firebaseApp, customUrl);
+      } catch (e) {
+        console.warn('Realtime Database init note:', e);
+      }
+    }
+
+    return { app: firebaseApp, firestore: firestoreDb, rtdb: realtimeDb };
   } catch (err) {
-    console.warn('Firebase initialization note:', err);
-    return { app: null, db: null };
+    console.warn('Firebase initialization error:', err);
+    return { app: null, firestore: null, rtdb: null };
   }
 };
 
@@ -80,32 +95,35 @@ export interface SyncDataPayload {
   lastUpdated: string;
 }
 
-// Subscribe to real-time updates from Firebase Realtime Database
+/**
+ * Subscribe to real-time updates from Cloud Firestore (primary)
+ */
 export const subscribeToFirebaseRealtime = (
   onData: (data: Partial<SyncDataPayload>) => void,
   onError: (error: Error) => void
-): Unsubscribe | null => {
+): FirestoreUnsubscribe | null => {
   try {
-    const { db } = getFirebaseInstance();
-    if (!db) {
-      onError(new Error('Firebase Database not initialized'));
+    const { firestore } = getFirebaseInstance();
+    if (!firestore) {
+      onError(new Error('Firebase Firestore not initialized'));
       return null;
     }
 
-    const rootRef = ref(db, 'vardhman_opsup');
-    const unsubscribe = onValue(
-      rootRef,
+    const mainDocRef = doc(firestore, 'vardhman_opsup', 'main');
+
+    const unsubscribe = onSnapshot(
+      mainDocRef,
       (snapshot) => {
         if (snapshot.exists()) {
-          const val = snapshot.val();
+          const val = snapshot.data() as Partial<SyncDataPayload>;
           onData(val);
         } else {
-          // Path doesn't exist yet, pass empty signal
+          // Document does not exist yet (first-time database setup)
           onData({});
         }
       },
       (error) => {
-        console.warn('Firebase RTDB onValue error:', error);
+        console.warn('Firestore onSnapshot error:', error);
         onError(error);
       }
     );
@@ -117,43 +135,116 @@ export const subscribeToFirebaseRealtime = (
   }
 };
 
-// Write full state or individual section to Firebase Realtime Database
+/**
+ * Write individual entity slice or full payload to Cloud Firestore (and RTDB)
+ */
 export const writeToFirebase = async (
   path: string,
   data: any
 ): Promise<{ success: boolean; error?: string }> => {
   try {
-    const { db } = getFirebaseInstance();
-    if (!db) {
-      return { success: false, error: 'Database not initialized' };
+    const { firestore, rtdb } = getFirebaseInstance();
+    if (!firestore) {
+      return { success: false, error: 'Firestore database not initialized' };
     }
 
-    const targetRef = ref(db, `vardhman_opsup/${path}`);
-    await set(targetRef, data);
+    // 1. Write to Cloud Firestore
+    const mainDocRef = doc(firestore, 'vardhman_opsup', 'main');
+    await setDoc(
+      mainDocRef,
+      {
+        [path]: data,
+        lastUpdated: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+
+    // Also write to section document for modular collection structure
+    try {
+      const sectionDocRef = doc(firestore, 'vardhman_opsup', path);
+      await setDoc(sectionDocRef, { data, updatedAt: new Date().toISOString() }, { merge: true });
+    } catch (e) {
+      // Non-blocking
+    }
+
+    // 2. Also sync to Realtime Database if accessible (dual sync)
+    if (rtdb) {
+      try {
+        const targetRef = ref(rtdb, `vardhman_opsup/${path}`);
+        await set(targetRef, data);
+      } catch (e) {
+        // Non-blocking RTDB fallback
+      }
+    }
+
     return { success: true };
   } catch (err: any) {
-    console.warn(`Failed writing to Firebase RTDB at vardhman_opsup/${path}:`, err);
+    console.warn(`Failed writing to Firestore at vardhman_opsup/${path}:`, err);
     return { success: false, error: err.message || 'Write failed' };
   }
 };
 
-// Seed all initial application data to Firebase Realtime Database
+/**
+ * Seed all application data to Cloud Firestore (and RTDB)
+ */
 export const seedAllToFirebase = async (
   payload: Omit<SyncDataPayload, 'lastUpdated'>
 ): Promise<{ success: boolean; error?: string }> => {
   try {
-    const { db } = getFirebaseInstance();
-    if (!db) {
-      return { success: false, error: 'Database not initialized' };
+    const { firestore, rtdb } = getFirebaseInstance();
+    if (!firestore) {
+      return { success: false, error: 'Firestore database not initialized' };
     }
 
-    const rootRef = ref(db, 'vardhman_opsup');
-    await set(rootRef, {
+    const fullPayload: SyncDataPayload = {
       ...payload,
       lastUpdated: new Date().toISOString(),
-    });
+    };
+
+    // 1. Cloud Firestore write
+    const mainDocRef = doc(firestore, 'vardhman_opsup', 'main');
+    await setDoc(mainDocRef, fullPayload, { merge: true });
+
+    // 2. Realtime Database dual write
+    if (rtdb) {
+      try {
+        const rootRef = ref(rtdb, 'vardhman_opsup');
+        await set(rootRef, fullPayload);
+      } catch (e) {
+        // Non-blocking
+      }
+    }
+
     return { success: true };
   } catch (err: any) {
+    console.warn('Seed to Firestore error:', err);
     return { success: false, error: err.message || 'Seed failed' };
+  }
+};
+
+/**
+ * Pull latest data snapshot on-demand from Cloud Firestore
+ */
+export const fetchLatestFromFirebase = async (): Promise<{
+  success: boolean;
+  data?: Partial<SyncDataPayload>;
+  error?: string;
+}> => {
+  try {
+    const { firestore } = getFirebaseInstance();
+    if (!firestore) {
+      return { success: false, error: 'Firestore database not initialized' };
+    }
+
+    const mainDocRef = doc(firestore, 'vardhman_opsup', 'main');
+    const snapshot = await getDoc(mainDocRef);
+
+    if (snapshot.exists()) {
+      return { success: true, data: snapshot.data() as Partial<SyncDataPayload> };
+    } else {
+      return { success: true, data: {} };
+    }
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Fetch failed' };
   }
 };

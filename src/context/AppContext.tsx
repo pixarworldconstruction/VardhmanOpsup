@@ -22,6 +22,7 @@ import {
   subscribeToFirebaseRealtime,
   writeToFirebase,
   seedAllToFirebase,
+  fetchLatestFromFirebase,
   getStoredDatabaseUrl,
   setStoredDatabaseUrl,
 } from '../services/firebase';
@@ -204,10 +205,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           });
         }
       },
-      (error) => {
-        console.warn('Firebase RTDB Connection note:', error);
+      (error: any) => {
+        console.warn('Firebase Firestore Connection note:', error);
         setFirebaseStatus('error');
-        setFirebaseError(error.message);
+        const isPermission = error?.message?.toLowerCase().includes('permission') || error?.code === 'permission-denied';
+        if (isPermission) {
+          setFirebaseError('Cloud Firestore Permission Denied. Please paste the Firestore Security Rules in Firebase Console → Firestore Database → Rules to allow saving.');
+        } else {
+          setFirebaseError(error.message || 'Error connecting to Cloud Firestore');
+        }
       }
     );
 
@@ -239,32 +245,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // Manual pull from Firebase Realtime Database
+  // Manual pull from Firebase Cloud Firestore
   const pullFromFirebaseNow = async (): Promise<boolean> => {
     setFirebaseStatus('connecting');
-    return new Promise((resolve) => {
-      const unsub = subscribeToFirebaseRealtime(
-        (data) => {
-          setFirebaseStatus('connected');
-          setFirebaseError(null);
-          if (data.storeProfile) setStoreProfile(data.storeProfile);
-          if (data.products) setProducts(data.products);
-          if (data.vendors) setVendors(data.vendors);
-          if (data.hospitals) setHospitals(data.hospitals);
-          if (data.purchases) setPurchases(data.purchases);
-          if (data.invoices) setInvoices(data.invoices);
-          if (data.challans) setChallans(data.challans);
-          if (unsub) unsub();
-          resolve(true);
-        },
-        (err) => {
-          setFirebaseStatus('error');
-          setFirebaseError(err.message);
-          if (unsub) unsub();
-          resolve(false);
-        }
-      );
-    });
+    const res = await fetchLatestFromFirebase();
+    if (res.success && res.data) {
+      setFirebaseStatus('connected');
+      setFirebaseError(null);
+      if (res.data.storeProfile) setStoreProfile(res.data.storeProfile);
+      if (res.data.products && Array.isArray(res.data.products)) setProducts(res.data.products);
+      if (res.data.vendors && Array.isArray(res.data.vendors)) setVendors(res.data.vendors);
+      if (res.data.hospitals && Array.isArray(res.data.hospitals)) setHospitals(res.data.hospitals);
+      if (res.data.purchases && Array.isArray(res.data.purchases)) setPurchases(res.data.purchases);
+      if (res.data.invoices && Array.isArray(res.data.invoices)) setInvoices(res.data.invoices);
+      if (res.data.challans && Array.isArray(res.data.challans)) setChallans(res.data.challans);
+      return true;
+    } else {
+      setFirebaseStatus('error');
+      setFirebaseError(res.error || 'Failed to pull from Cloud Firestore. Check Firestore Rules.');
+      return false;
+    }
   };
 
   const updateFirebaseDatabaseUrl = (url: string) => {
@@ -691,25 +691,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // ===================== BACKUP & RESET =====================
   const resetToSampleData = () => {
-    if (confirm('Reset all catalog and transaction data to initial surgical supplies state? This will also update Firebase.')) {
-      setStoreProfile(initialStoreProfile);
-      setProducts(initialProducts);
-      setVendors(initialVendors);
-      setHospitals(initialHospitals);
-      setPurchases(initialPurchases);
-      setInvoices(initialSalesInvoices);
-      setChallans(initialDeliveryChallans);
+    setStoreProfile(initialStoreProfile);
+    setProducts(initialProducts);
+    setVendors(initialVendors);
+    setHospitals(initialHospitals);
+    setPurchases(initialPurchases);
+    setInvoices(initialSalesInvoices);
+    setChallans(initialDeliveryChallans);
 
-      seedAllToFirebase({
-        storeProfile: initialStoreProfile,
-        products: initialProducts,
-        vendors: initialVendors,
-        hospitals: initialHospitals,
-        purchases: initialPurchases,
-        invoices: initialSalesInvoices,
-        challans: initialDeliveryChallans,
-      });
-    }
+    seedAllToFirebase({
+      storeProfile: initialStoreProfile,
+      products: initialProducts,
+      vendors: initialVendors,
+      hospitals: initialHospitals,
+      purchases: initialPurchases,
+      invoices: initialSalesInvoices,
+      challans: initialDeliveryChallans,
+    });
   };
 
   const exportDatabase = () => {

@@ -17,6 +17,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../utils/formatters';
+import { ConfirmModal } from '../common/ConfirmModal';
 
 interface HospitalsViewProps {
   onOpenNewHospital: () => void;
@@ -34,6 +35,7 @@ export const HospitalsView: React.FC<HospitalsViewProps> = ({
   const { hospitals, deleteHospital, invoices, challans } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedHospitalHistory, setSelectedHospitalHistory] = useState<Hospital | null>(null);
+  const [hospitalToDelete, setHospitalToDelete] = useState<Hospital | null>(null);
 
   const filteredHospitals = hospitals.filter((h) => {
     return (
@@ -187,11 +189,8 @@ export const HospitalsView: React.FC<HospitalsViewProps> = ({
                   </button>
 
                   <button
-                    onClick={() => {
-                      if (confirm(`Delete hospital record for ${h.name}?`)) {
-                        deleteHospital(h.id);
-                      }
-                    }}
+                    type="button"
+                    onClick={() => setHospitalToDelete(h)}
                     className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition"
                     title="Delete Hospital"
                   >
@@ -340,6 +339,22 @@ export const HospitalsView: React.FC<HospitalsViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Confirmation Modal for Hospital Deletion */}
+      <ConfirmModal
+        isOpen={!!hospitalToDelete}
+        title="Delete Hospital Record"
+        message={`Are you sure you want to delete "${hospitalToDelete?.name}"?`}
+        subMessage="This hospital record, department/store information, and balance tracking will be removed."
+        confirmLabel="Delete Hospital"
+        onConfirm={() => {
+          if (hospitalToDelete) {
+            deleteHospital(hospitalToDelete.id);
+            setHospitalToDelete(null);
+          }
+        }}
+        onClose={() => setHospitalToDelete(null)}
+      />
     </div>
   );
 };

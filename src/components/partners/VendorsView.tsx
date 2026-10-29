@@ -16,6 +16,7 @@ import {
   Building2,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../utils/formatters';
+import { ConfirmModal } from '../common/ConfirmModal';
 
 interface VendorsViewProps {
   onOpenNewVendor: () => void;
@@ -31,6 +32,7 @@ export const VendorsView: React.FC<VendorsViewProps> = ({
   const { vendors, deleteVendor, purchases } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedVendorHistory, setSelectedVendorHistory] = useState<Vendor | null>(null);
+  const [vendorToDelete, setVendorToDelete] = useState<Vendor | null>(null);
 
   const filteredVendors = vendors.filter((v) => {
     return (
@@ -210,11 +212,8 @@ export const VendorsView: React.FC<VendorsViewProps> = ({
                   </button>
 
                   <button
-                    onClick={() => {
-                      if (confirm(`Delete vendor record for ${v.name}?`)) {
-                        deleteVendor(v.id);
-                      }
-                    }}
+                    type="button"
+                    onClick={() => setVendorToDelete(v)}
                     className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition"
                     title="Delete Vendor"
                   >
@@ -334,6 +333,22 @@ export const VendorsView: React.FC<VendorsViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Confirmation Modal for Vendor Deletion */}
+      <ConfirmModal
+        isOpen={!!vendorToDelete}
+        title="Delete Vendor Record"
+        message={`Are you sure you want to delete "${vendorToDelete?.name}"?`}
+        subMessage="This will remove the vendor profile and contact details from your records."
+        confirmLabel="Delete Vendor"
+        onConfirm={() => {
+          if (vendorToDelete) {
+            deleteVendor(vendorToDelete.id);
+            setVendorToDelete(null);
+          }
+        }}
+        onClose={() => setVendorToDelete(null)}
+      />
     </div>
   );
 };

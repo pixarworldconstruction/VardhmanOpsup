@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { StoreProfile } from '../../types';
 import { Store, X, Save, Building2, CreditCard, ShieldCheck, RefreshCw } from 'lucide-react';
+import { ConfirmModal } from '../common/ConfirmModal';
 
 interface StoreProfileModalProps {
   isOpen: boolean;
@@ -13,6 +14,7 @@ export const StoreProfileModal: React.FC<StoreProfileModalProps> = ({ isOpen, on
   const [formData, setFormData] = useState<StoreProfile>(storeProfile);
   const [activeTab, setActiveTab] = useState<'general' | 'banking' | 'terms'>('general');
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   if (!isOpen) return null;
 
@@ -292,12 +294,7 @@ export const StoreProfileModal: React.FC<StoreProfileModalProps> = ({ isOpen, on
           <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-4">
             <button
               type="button"
-              onClick={() => {
-                if (confirm('Are you sure you want to restore default sample store and demo records?')) {
-                  resetToSampleData();
-                  onClose();
-                }
-              }}
+              onClick={() => setShowResetConfirm(true)}
               className="flex items-center gap-1.5 text-xs text-rose-600 hover:text-rose-800 transition"
             >
               <RefreshCw className="w-3.5 h-3.5" />
@@ -323,6 +320,21 @@ export const StoreProfileModal: React.FC<StoreProfileModalProps> = ({ isOpen, on
           </div>
         </form>
       </div>
+
+      {/* Confirmation Modal for Resetting Database */}
+      <ConfirmModal
+        isOpen={showResetConfirm}
+        title="Reset to Sample Data"
+        message="Are you sure you want to restore default sample store and demo records?"
+        subMessage="This will reset all catalog products, hospital stores, vendor accounts, and transaction records to the default demo state and update Firebase."
+        confirmLabel="Reset Data"
+        onConfirm={() => {
+          resetToSampleData();
+          setShowResetConfirm(false);
+          onClose();
+        }}
+        onClose={() => setShowResetConfirm(false)}
+      />
     </div>
   );
 };

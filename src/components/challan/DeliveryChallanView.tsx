@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { formatDate } from '../../utils/formatters';
 import { exportChallanPDF } from '../../utils/pdfGenerator';
+import { ConfirmModal } from '../common/ConfirmModal';
 
 interface DeliveryChallanViewProps {
   onOpenNewChallan: () => void;
@@ -35,6 +36,7 @@ export const DeliveryChallanView: React.FC<DeliveryChallanViewProps> = ({
   } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [challanToDelete, setChallanToDelete] = useState<DeliveryChallan | null>(null);
 
   const filteredChallans = challans.filter((c) => {
     const matchesSearch =
@@ -54,7 +56,6 @@ export const DeliveryChallanView: React.FC<DeliveryChallanViewProps> = ({
   const handleConvertToInvoice = (challanId: string) => {
     const newInv = createInvoiceFromChallan(challanId);
     if (newInv) {
-      alert(`Invoice ${newInv.invoiceNumber} created successfully from Delivery Challan!`);
       setActiveView('sales');
     }
   };
@@ -245,11 +246,8 @@ export const DeliveryChallanView: React.FC<DeliveryChallanViewProps> = ({
 
                           {/* Delete */}
                           <button
-                            onClick={() => {
-                              if (confirm(`Delete delivery challan ${c.challanNumber}?`)) {
-                                deleteDeliveryChallan(c.id);
-                              }
-                            }}
+                            type="button"
+                            onClick={() => setChallanToDelete(c)}
                             className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition"
                             title="Delete Challan"
                           >
@@ -265,6 +263,22 @@ export const DeliveryChallanView: React.FC<DeliveryChallanViewProps> = ({
           </table>
         </div>
       </div>
+
+      {/* Confirmation Modal for Delivery Challan Deletion */}
+      <ConfirmModal
+        isOpen={!!challanToDelete}
+        title="Delete Delivery Challan"
+        message={`Are you sure you want to delete delivery challan "${challanToDelete?.challanNumber}" for ${challanToDelete?.hospitalName}?`}
+        subMessage="This record will be permanently removed from your delivery and dispatch logs."
+        confirmLabel="Delete Challan"
+        onConfirm={() => {
+          if (challanToDelete) {
+            deleteDeliveryChallan(challanToDelete.id);
+            setChallanToDelete(null);
+          }
+        }}
+        onClose={() => setChallanToDelete(null)}
+      />
     </div>
   );
 };

@@ -1,0 +1,55 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // =========================================================================
+    // VARDHMAN OPSUP - MEDICAL & OPERATION MATERIAL SUPPLIERS
+    // Full Read, Create (Add), Update (Edit), and Delete Permissions
+    // =========================================================================
+
+    // 1. Primary App Master Database (Sync Document & Collections)
+    match /vardhman_opsup/{document=**} {
+      allow read, create, update, delete: if true;
+    }
+
+    // 2. Operation Material & Medical Supplies (Products Inventory)
+    match /products/{document=**} {
+      allow read, create, update, delete: if true;
+    }
+
+    // 3. Sales & Tax Invoices (Hospital Billing & Inventory Reduction)
+    match /invoices/{document=**} {
+      allow read, create, update, delete: if true;
+    }
+
+    // 4. Delivery Challans (Hospital Dispatch & Material Tracking)
+    match /challans/{document=**} {
+      allow read, create, update, delete: if true;
+    }
+
+    // 5. Inward Purchases (Wholesaler Inward Entries & Stock Addition)
+    match /purchases/{document=**} {
+      allow read, create, update, delete: if true;
+    }
+
+    // 6. Hospitals & Clinic Stores (Customer Profiles & Ledgers)
+    match /hospitals/{document=**} {
+      allow read, create, update, delete: if true;
+    }
+
+    // 7. Vendors & Suppliers (Wholesaler & Manufacturer Profiles)
+    match /vendors/{document=**} {
+      allow read, create, update, delete: if true;
+    }
+
+    // 8. Store Profile (Vardhman Opsup Company, GST & Drug License Details)
+    match /storeProfile/{document=**} {
+      allow read, create, update, delete: if true;
+    }
+
+    // 9. Global Fallback for Nested Subcollections & Backups
+    match /{document=**} {
+      allow read, create, update, delete: if true;
+    }
+  }
+}
