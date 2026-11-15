@@ -11,7 +11,6 @@ import {
   RotateCcw,
   Smartphone,
   Download,
-  Database,
   CloudCheck,
   LogOut,
   UserCheck,
@@ -20,7 +19,6 @@ import {
 
 interface HeaderProps {
   onOpenStoreModal: () => void;
-  onOpenFirebaseModal: () => void;
   onOpenNewInvoice: () => void;
   onOpenNewChallan: () => void;
   onOpenNewPurchase: () => void;
@@ -33,7 +31,6 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   onOpenStoreModal,
-  onOpenFirebaseModal,
   onOpenNewInvoice,
   onOpenNewChallan,
   onOpenNewPurchase,
@@ -48,7 +45,6 @@ export const Header: React.FC<HeaderProps> = ({
     lowStockProducts,
     setActiveView,
     exportDatabase,
-    firebaseStatus,
     currentUser,
     activeUser,
     logoutAdmin,
@@ -79,31 +75,6 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Action Controls & Navigation Shortcuts */}
         <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Firebase Realtime Database Live Sync Indicator */}
-          <button
-            onClick={onOpenFirebaseModal}
-            className={`flex items-center gap-1.5 rounded-lg border px-2 sm:px-2.5 py-1.5 text-xs font-semibold transition shadow-2xs ${
-              firebaseStatus === 'connected'
-                ? 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                : firebaseStatus === 'connecting'
-                ? 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100'
-                : 'border-rose-300 bg-rose-50 text-rose-800 hover:bg-rose-100'
-            }`}
-            title="Firebase Realtime Database: vardhman-opsup (Click to manage sync)"
-          >
-            <Database className="w-3.5 h-3.5 text-amber-600" />
-            <span className="hidden md:inline">Firebase DB</span>
-            <span
-              className={`inline-block w-2 h-2 rounded-full ${
-                firebaseStatus === 'connected'
-                  ? 'bg-emerald-500 animate-pulse'
-                  : firebaseStatus === 'connecting'
-                  ? 'bg-amber-500 animate-ping'
-                  : 'bg-rose-500'
-              }`}
-            />
-          </button>
-
           {/* Low Stock Alert Indicator */}
           {lowStockProducts.length > 0 && (
             <button

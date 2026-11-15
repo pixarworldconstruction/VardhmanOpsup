@@ -4,6 +4,8 @@ import {
   doc,
   setDoc,
   getDoc,
+  getDocs,
+  collection,
   onSnapshot,
   Firestore,
   Unsubscribe as FirestoreUnsubscribe,
@@ -12,6 +14,7 @@ import {
   getDatabase,
   ref,
   set,
+  get,
   Database,
 } from 'firebase/database';
 import {
@@ -394,14 +397,37 @@ export const seedAllToFirebase = async (
       return { success: false, error: 'Firestore database not initialized' };
     }
 
+    const now = new Date().toISOString();
     const fullPayload: SyncDataPayload = {
       ...payload,
-      lastUpdated: new Date().toISOString(),
+      lastUpdated: now,
     };
 
-    // 1. Cloud Firestore write
+    // 1. Cloud Firestore primary sync document
     const mainDocRef = doc(firestore, 'vardhman_opsup', 'main');
     await setDoc(mainDocRef, fullPayload, { merge: true });
+
+    // Also update modular section documents so main and section docs stay aligned
+    const keys: Array<keyof Omit<SyncDataPayload, 'lastUpdated'>> = [
+      'products',
+      'vendors',
+      'hospitals',
+      'purchases',
+      'invoices',
+      'challans',
+      'storeProfile',
+      'users',
+    ];
+    for (const key of keys) {
+      if (payload[key] !== undefined) {
+        try {
+          const sectionDocRef = doc(firestore, 'vardhman_opsup', key);
+          await setDoc(sectionDocRef, { data: payload[key], updatedAt: now }, { merge: true });
+        } catch {
+          // Non-blocking
+        }
+      }
+    }
 
     // 2. Realtime Database dual write
     if (rtdb) {
@@ -420,29 +446,207 @@ export const seedAllToFirebase = async (
   }
 };
 
+type ArraySliceKey =
+  | 'products'
+  | 'vendors'
+  | 'hospitals'
+  | 'purchases'
+  | 'invoices'
+  | 'challans'
+  | 'users';
+
+const withTimeout = <T>(promise: Promise<T>, ms: number, label: string): Promise<T> =>
+  new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    promise
+      .then((val) => {
+        clearTimeout(timer);
+        resolve(val);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+
 /**
- * Pull latest data snapshot on-demand from Cloud Firestore
+ * Pull latest data snapshot on-demand from Cloud Firestore, with fast parallel
+ * diagnostic recovery across modular section docs, top-level collections,
+ * and Realtime Database (with strict timeouts so missing RTDB never hangs).
  */
 export const fetchLatestFromFirebase = async (): Promise<{
   success: boolean;
   data?: Partial<SyncDataPayload>;
+  mainDocExists?: boolean;
   error?: string;
 }> => {
   try {
-    const { firestore } = getFirebaseInstance();
+    const { firestore, rtdb } = getFirebaseInstance();
     if (!firestore) {
       return { success: false, error: 'Firestore database not initialized' };
     }
 
     const mainDocRef = doc(firestore, 'vardhman_opsup', 'main');
-    const snapshot = await getDoc(mainDocRef);
+    const mainSnap = await withTimeout(getDoc(mainDocRef), 5000, 'Firestore main doc');
+    const mainDocExists = mainSnap.exists();
+    const consolidated: Partial<SyncDataPayload> = mainDocExists
+      ? { ...(mainSnap.data() as Partial<SyncDataPayload>) }
+      : {};
 
-    if (snapshot.exists()) {
-      return { success: true, data: snapshot.data() as Partial<SyncDataPayload> };
-    } else {
-      return { success: true, data: {} };
+    const arrayKeys: ArraySliceKey[] = [
+      'products',
+      'vendors',
+      'hospitals',
+      'purchases',
+      'invoices',
+      'challans',
+      'users',
+    ];
+
+    const missingArrayKeys = arrayKeys.filter((key) => {
+      const val = consolidated[key];
+      return !Array.isArray(val) || val.length === 0;
+    });
+
+    const recoveredFields: Partial<SyncDataPayload> = {};
+
+    if (missingArrayKeys.length > 0 || !consolidated.storeProfile) {
+      // Check RTDB once with a strict 1200ms timeout so unconfigured RTDB never hangs
+      const rtdbPromise: Promise<Record<string, any> | null> = rtdb
+        ? withTimeout(get(ref(rtdb, 'vardhman_opsup')), 1200, 'RTDB fallback')
+            .then((snap) => (snap.exists() ? (snap.val() as Record<string, any>) : null))
+            .catch(() => null)
+        : Promise.resolve(null);
+
+      // Check Firestore section docs and top-level collections in parallel
+      const arrayChecks = missingArrayKeys.map(async (key) => {
+        // 1. Modular section doc: vardhman_opsup/{key}
+        try {
+          const sectionSnap = await withTimeout(
+            getDoc(doc(firestore, 'vardhman_opsup', key)),
+            3000,
+            `section ${key}`
+          );
+          if (sectionSnap.exists()) {
+            const secData = sectionSnap.data();
+            const arr = Array.isArray(secData?.data)
+              ? secData.data
+              : Array.isArray(secData?.items)
+              ? secData.items
+              : null;
+            if (arr && arr.length > 0) {
+              (consolidated as any)[key] = arr;
+              (recoveredFields as any)[key] = arr;
+              return;
+            }
+          }
+        } catch {
+          // Ignore
+        }
+
+        // 2. Top-level collection /{key}
+        try {
+          const colSnap = await withTimeout(
+            getDocs(collection(firestore, key)),
+            3000,
+            `collection ${key}`
+          );
+          if (!colSnap.empty) {
+            const docsList = colSnap.docs
+              .filter((d) => d.id !== '_init' && d.id !== '_placeholder')
+              .map((d) => {
+                const dData = d.data() as Record<string, any>;
+                return dData.id ? dData : { id: d.id, ...dData };
+              });
+            if (docsList.length > 0) {
+              (consolidated as any)[key] = docsList;
+              (recoveredFields as any)[key] = docsList;
+              return;
+            }
+          }
+        } catch {
+          // Ignore
+        }
+
+        // 3. RTDB fallback
+        const rtdbRoot = await rtdbPromise;
+        if (rtdbRoot && rtdbRoot[key]) {
+          const rtdbVal = Array.isArray(rtdbRoot[key])
+            ? rtdbRoot[key]
+            : typeof rtdbRoot[key] === 'object'
+            ? Object.values(rtdbRoot[key])
+            : null;
+          if (rtdbVal && rtdbVal.length > 0) {
+            (consolidated as any)[key] = rtdbVal;
+            (recoveredFields as any)[key] = rtdbVal;
+          }
+        }
+      });
+
+      const storeProfileCheck = !consolidated.storeProfile
+        ? (async () => {
+            try {
+              const spSnap = await withTimeout(
+                getDoc(doc(firestore, 'vardhman_opsup', 'storeProfile')),
+                3000,
+                'section storeProfile'
+              );
+              if (spSnap.exists()) {
+                const spData = spSnap.data();
+                const profile = spData?.data || spData;
+                if (profile && profile.name) {
+                  consolidated.storeProfile = profile as StoreProfile;
+                  recoveredFields.storeProfile = profile as StoreProfile;
+                  return;
+                }
+              }
+            } catch {
+              // Ignore
+            }
+
+            try {
+              const spCol = await withTimeout(
+                getDocs(collection(firestore, 'storeProfile')),
+                3000,
+                'collection storeProfile'
+              );
+              if (!spCol.empty) {
+                const first = spCol.docs[0].data() as StoreProfile;
+                if (first && first.name) {
+                  consolidated.storeProfile = first;
+                  recoveredFields.storeProfile = first;
+                  return;
+                }
+              }
+            } catch {
+              // Ignore
+            }
+
+            const rtdbRoot = await rtdbPromise;
+            if (rtdbRoot?.storeProfile?.name) {
+              consolidated.storeProfile = rtdbRoot.storeProfile as StoreProfile;
+              recoveredFields.storeProfile = rtdbRoot.storeProfile as StoreProfile;
+            }
+          })()
+        : Promise.resolve();
+
+      await Promise.all([...arrayChecks, storeProfileCheck]);
     }
+
+    // Heal main document in background if any real data was recovered from secondary locations
+    if (Object.keys(recoveredFields).length > 0) {
+      setDoc(
+        mainDocRef,
+        {
+          ...recoveredFields,
+          lastUpdated: new Date().toISOString(),
+        },
+        { merge: true }
+      ).catch(() => {});
+    }
+
+    return { success: true, data: consolidated, mainDocExists };
   } catch (err: any) {
-    return { success: false, error: err.message || 'Fetch failed' };
+    return { success: false, error: err?.message || 'Fetch failed' };
   }
 };

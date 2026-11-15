@@ -22,12 +22,11 @@ import { InvoiceModal } from './components/sales/InvoiceModal';
 import { InvoicePrintModal } from './components/sales/InvoicePrintModal';
 import { ChallanModal } from './components/challan/ChallanModal';
 import { ChallanPrintModal } from './components/challan/ChallanPrintModal';
-import { FirebaseSyncModal } from './components/FirebaseSyncModal';
 import { AdminLoginScreen } from './components/auth/AdminLoginScreen';
 import { UserProfileModal } from './components/users/UserProfileModal';
 import { UserManagementModal } from './components/users/UserManagementModal';
 import { AdminProfileView } from './components/users/AdminProfileView';
-import { Flame, KeyRound, ShieldAlert, LogOut } from 'lucide-react';
+import { KeyRound, ShieldAlert, LogOut } from 'lucide-react';
 import { Product, Hospital, Vendor, SalesInvoice, DeliveryChallan } from './types';
 
 function AuthenticatedWorkspace() {
@@ -36,13 +35,11 @@ function AuthenticatedWorkspace() {
     setActiveView,
     invoices,
     challans,
-    firebaseStatus,
     activeUser,
   } = useApp();
 
   // Modal states (always called unconditionally in AuthenticatedWorkspace)
   const [isStoreModalOpen, setIsStoreModalOpen] = useState(false);
-  const [isFirebaseModalOpen, setIsFirebaseModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isUsersModalOpen, setIsUsersModalOpen] = useState(false);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -118,7 +115,6 @@ function AuthenticatedWorkspace() {
         {/* Top Header */}
         <Header
           onOpenStoreModal={() => setIsStoreModalOpen(true)}
-          onOpenFirebaseModal={() => setIsFirebaseModalOpen(true)}
           onOpenNewInvoice={() => setIsInvoiceModalOpen(true)}
           onOpenNewChallan={() => setIsChallanModalOpen(true)}
           onOpenNewPurchase={() => setIsPurchaseModalOpen(true)}
@@ -160,31 +156,6 @@ function AuthenticatedWorkspace() {
                   className="shrink-0 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs px-3.5 py-1.5 transition shadow-2xs text-center"
                 >
                   Open My Profile
-                </button>
-              </div>
-            )}
-
-            {/* Firestore Setup Alert Banner */}
-            {firebaseStatus === 'error' && (
-              <div className="mb-4 rounded-xl border border-orange-200 bg-orange-50/90 p-3.5 text-orange-950 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in">
-                <div className="flex items-start gap-2.5">
-                  <div className="p-1 rounded-lg bg-orange-600 text-white shrink-0 mt-0.5">
-                    <Flame className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-orange-950">
-                      Cloud Firestore: Security Rules Required to Store Data Online
-                    </p>
-                    <p className="text-[11px] text-orange-900/80 mt-0.5">
-                      Your changes are safe locally, but Firebase Firestore requires security rules before allowing writes. Paste the rules into Firebase Console to prevent data from resetting.
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setIsFirebaseModalOpen(true)}
-                  className="shrink-0 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-semibold text-xs px-3.5 py-1.5 transition shadow-2xs text-center"
-                >
-                  Copy Firestore Rules
                 </button>
               </div>
             )}
@@ -271,11 +242,6 @@ function AuthenticatedWorkspace() {
           onClose={() => setIsStoreModalOpen(false)}
         />
 
-        <FirebaseSyncModal
-          isOpen={isFirebaseModalOpen}
-          onClose={() => setIsFirebaseModalOpen(false)}
-        />
-
         <UserProfileModal
           isOpen={isProfileModalOpen}
           onClose={() => setIsProfileModalOpen(false)}
@@ -353,7 +319,7 @@ function AuthenticatedWorkspace() {
 }
 
 function MainApp() {
-  const { isAdminAuthenticated, authLoading, activeUser, logoutAdmin } = useApp();
+  const { isAdminAuthenticated, authLoading, dataLoading, activeUser, logoutAdmin } = useApp();
 
   // If Firebase Auth is checking session
   if (authLoading) {
@@ -371,6 +337,19 @@ function MainApp() {
   // If not authenticated, require Login
   if (!isAdminAuthenticated) {
     return <AdminLoginScreen />;
+  }
+
+  // Wait for live Cloud Firestore data to load cleanly before rendering workspace
+  if (dataLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-teal-600 text-white font-extrabold text-2xl shadow-xl animate-pulse mb-4">
+          VO
+        </div>
+        <p className="text-sm font-bold text-slate-800">Vardhman Opsup</p>
+        <p className="text-xs text-slate-500 mt-1">Loading live Cloud Firestore records...</p>
+      </div>
+    );
   }
 
   // If user account has been suspended by Admin

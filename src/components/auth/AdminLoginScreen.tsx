@@ -7,20 +7,17 @@ import {
   Eye,
   EyeOff,
   LogIn,
-  KeyRound,
   AlertCircle,
   CheckCircle2,
   Sparkles,
-  Server,
   Activity,
 } from 'lucide-react';
-import { defaultFirebaseConfig } from '../../services/firebase';
 
 export const AdminLoginScreen: React.FC = () => {
   const { loginAdmin, registerAdmin } = useApp();
 
-  const [email, setEmail] = useState('arcline02@gmail.com');
-  const [password, setPassword] = useState('010203');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -71,12 +68,6 @@ export const AdminLoginScreen: React.FC = () => {
     }
   };
 
-  const fillAdminCredentials = () => {
-    setEmail('arcline02@gmail.com');
-    setPassword('010203');
-    setErrorMessage(null);
-  };
-
   return (
     <div className="min-h-screen bg-linear-to-br from-slate-100 via-teal-50/40 to-slate-100 flex flex-col justify-center items-center p-4">
       <div className="w-full max-w-md">
@@ -116,26 +107,6 @@ export const AdminLoginScreen: React.FC = () => {
           </div>
 
           <form onSubmit={handleSubmit} className="p-6 space-y-4">
-            {/* Quick credentials hint banner */}
-            <div className="p-3 rounded-xl bg-teal-50 border border-teal-200/80 flex items-center justify-between text-xs">
-              <div className="space-y-0.5">
-                <span className="font-semibold text-teal-950 flex items-center gap-1.5">
-                  <KeyRound className="w-3.5 h-3.5 text-teal-600" />
-                  Admin Credentials:
-                </span>
-                <p className="text-[11px] text-teal-800 font-mono">
-                  arcline02@gmail.com / 010203
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={fillAdminCredentials}
-                className="text-[11px] font-semibold text-teal-700 hover:text-teal-900 bg-teal-100 hover:bg-teal-200 px-2.5 py-1 rounded-lg transition"
-              >
-                Auto-Fill
-              </button>
-            </div>
-
             {/* Error Message */}
             {errorMessage && (
               <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-start gap-2.5 animate-fade-in">
@@ -239,11 +210,8 @@ export const AdminLoginScreen: React.FC = () => {
 
           {/* Footer information */}
           <div className="border-t border-slate-100 bg-slate-50 p-4 text-center">
-            <p className="text-[11px] text-slate-500">
-              Firebase Project: <strong className="font-mono text-slate-800">{defaultFirebaseConfig.projectId}</strong>
-            </p>
-            <p className="text-[10px] text-slate-400 mt-0.5">
-              Strict Admin-Only Firestore Security Rules Enforced
+            <p className="text-[11px] font-medium text-slate-600">
+              Website development by: <strong className="font-bold text-slate-800">Pixar World Info Tech</strong>
             </p>
           </div>
         </div>

@@ -44,6 +44,7 @@ interface AppContextType {
   users: AppUser[];
   isAdminAuthenticated: boolean;
   authLoading: boolean;
+  dataLoading: boolean;
   loginAdmin: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
   registerAdmin: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
   logoutAdmin: () => Promise<void>;
@@ -123,45 +124,14 @@ const STORAGE_KEYS = {
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [storeProfile, setStoreProfile] = useState<StoreProfile>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.PROFILE);
-    return saved ? JSON.parse(saved) : initialStoreProfile;
-  });
-
-  const [products, setProducts] = useState<Product[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
-    return saved ? JSON.parse(saved) : initialProducts;
-  });
-
-  const [vendors, setVendors] = useState<Vendor[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.VENDORS);
-    return saved ? JSON.parse(saved) : initialVendors;
-  });
-
-  const [hospitals, setHospitals] = useState<Hospital[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.HOSPITALS);
-    return saved ? JSON.parse(saved) : initialHospitals;
-  });
-
-  const [purchases, setPurchases] = useState<PurchaseTransaction[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.PURCHASES);
-    return saved ? JSON.parse(saved) : initialPurchases;
-  });
-
-  const [invoices, setInvoices] = useState<SalesInvoice[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.INVOICES);
-    return saved ? JSON.parse(saved) : initialSalesInvoices;
-  });
-
-  const [challans, setChallans] = useState<DeliveryChallan[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.CHALLANS);
-    return saved ? JSON.parse(saved) : initialDeliveryChallans;
-  });
-
-  const [users, setUsers] = useState<AppUser[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.USERS);
-    return saved ? JSON.parse(saved) : initialUsers;
-  });
+  const [storeProfile, setStoreProfile] = useState<StoreProfile>(initialStoreProfile);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [hospitals, setHospitals] = useState<Hospital[]>([]);
+  const [purchases, setPurchases] = useState<PurchaseTransaction[]>([]);
+  const [invoices, setInvoices] = useState<SalesInvoice[]>([]);
+  const [challans, setChallans] = useState<DeliveryChallan[]>([]);
+  const [users, setUsers] = useState<AppUser[]>([initialUsers[0]]);
 
   const [activeView, setActiveView] = useState<string>('dashboard');
 
@@ -169,6 +139,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [currentUser, setCurrentUser] = useState<AdminAuthUser | null>(null);
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
   const [authLoading, setAuthLoading] = useState<boolean>(true);
+  const [dataLoading, setDataLoading] = useState<boolean>(false);
 
   // Subscribe to Firebase Auth state
   useEffect(() => {
@@ -195,22 +166,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const loginAdmin = async (email: string, pass: string): Promise<{ success: boolean; error?: string }> => {
     const res = await signInAdmin(email, pass);
     if (res.success && res.user) {
-      const normalizedEmail = (res.user.email || email).trim().toLowerCase();
       setCurrentUser({
         uid: res.user.uid,
         email: res.user.email,
         displayName: res.user.displayName || res.user.email?.split('@')[0],
       });
       setIsAdminAuthenticated(true);
-      setUsers((prev) => {
-        const idx = prev.findIndex((u) => u.email.toLowerCase() === normalizedEmail);
-        if (idx === -1) return prev;
-        const updated = prev.map((u, i) =>
-          i === idx ? { ...u, lastLoginAt: new Date().toISOString() } : u
-        );
-        writeToFirebase('users', updated);
-        return updated;
-      });
       return { success: true };
     }
     return { success: false, error: res.error };
@@ -253,103 +214,270 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     : null;
 
   // Firebase Realtime Database status
-  const [firebaseStatus, setFirebaseStatus] = useState<'connecting' | 'connected' | 'error' | 'offline'>('connecting');
+  const [firebaseStatus, setFirebaseStatus] = useState<'connecting' | 'connected' | 'error' | 'offline'>('offline');
   const [firebaseError, setFirebaseError] = useState<string | null>(null);
   const [firebaseDatabaseUrl, setFirebaseDatabaseUrlState] = useState<string>(getStoredDatabaseUrl());
 
-  const isInitialSyncAttempted = useRef(false);
+  const hasLoadedFromFirebaseRef = useRef(false);
 
-  // Persistence effects for offline reliability
+  // Persist to localStorage ONLY after Firestore has hydrated so empty initial state never overwrites cache
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(storeProfile));
+    if (hasLoadedFromFirebaseRef.current) {
+      localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(storeProfile));
+    }
   }, [storeProfile]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
+    if (hasLoadedFromFirebaseRef.current) {
+      localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
+    }
   }, [products]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.VENDORS, JSON.stringify(vendors));
+    if (hasLoadedFromFirebaseRef.current) {
+      localStorage.setItem(STORAGE_KEYS.VENDORS, JSON.stringify(vendors));
+    }
   }, [vendors]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.HOSPITALS, JSON.stringify(hospitals));
+    if (hasLoadedFromFirebaseRef.current) {
+      localStorage.setItem(STORAGE_KEYS.HOSPITALS, JSON.stringify(hospitals));
+    }
   }, [hospitals]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.PURCHASES, JSON.stringify(purchases));
+    if (hasLoadedFromFirebaseRef.current) {
+      localStorage.setItem(STORAGE_KEYS.PURCHASES, JSON.stringify(purchases));
+    }
   }, [purchases]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.INVOICES, JSON.stringify(invoices));
+    if (hasLoadedFromFirebaseRef.current) {
+      localStorage.setItem(STORAGE_KEYS.INVOICES, JSON.stringify(invoices));
+    }
   }, [invoices]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.CHALLANS, JSON.stringify(challans));
+    if (hasLoadedFromFirebaseRef.current) {
+      localStorage.setItem(STORAGE_KEYS.CHALLANS, JSON.stringify(challans));
+    }
   }, [challans]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+    if (hasLoadedFromFirebaseRef.current) {
+      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+    }
   }, [users]);
 
-  // Subscribe to Firebase Realtime Database
+  // Helper to check whether localStorage holds genuine user-created records (not old hardcoded sample IDs)
+  const readCustomLocalSlice = <T extends { id?: string }>(key: string, sampleIds: string[]): T[] => {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed) || parsed.length === 0) return [];
+      const hasCustomRecord = parsed.some((item) => item?.id && !sampleIds.includes(item.id));
+      return hasCustomRecord ? parsed : [];
+    } catch {
+      return [];
+    }
+  };
+
+  // Load & subscribe to Cloud Firestore strictly AFTER authentication succeeds
   useEffect(() => {
-    setFirebaseStatus('connecting');
-    const unsubscribe = subscribeToFirebaseRealtime(
-      (data) => {
-        setFirebaseStatus('connected');
-        setFirebaseError(null);
+    if (!isAdminAuthenticated || !currentUser) {
+      hasLoadedFromFirebaseRef.current = false;
+      setProducts([]);
+      setVendors([]);
+      setHospitals([]);
+      setPurchases([]);
+      setInvoices([]);
+      setChallans([]);
+      setUsers([initialUsers[0]]);
+      setStoreProfile(initialStoreProfile);
+      setDataLoading(false);
+      setFirebaseStatus('offline');
+      return;
+    }
 
-        // Check if database already has data
-        const hasRemoteData = data && (
-          (Array.isArray(data.products) && data.products.length > 0) ||
-          (Array.isArray(data.vendors) && data.vendors.length > 0) ||
-          (Array.isArray(data.hospitals) && data.hospitals.length > 0) ||
-          (Array.isArray(data.users) && data.users.length > 0)
-        );
+    let isCancelled = false;
+    let unsubscribeSnapshot: (() => void) | null = null;
 
-        if (hasRemoteData) {
-          if (data.storeProfile) setStoreProfile(data.storeProfile);
-          if (data.products) setProducts(data.products);
-          if (data.vendors) setVendors(data.vendors);
-          if (data.hospitals) setHospitals(data.hospitals);
-          if (data.purchases) setPurchases(data.purchases);
-          if (data.invoices) setInvoices(data.invoices);
-          if (data.challans) setChallans(data.challans);
-          if (Array.isArray(data.users) && data.users.length > 0) setUsers(data.users);
-        } else if (!isInitialSyncAttempted.current) {
-          // Empty Realtime Database on first connect: seed initial catalog & profile!
-          isInitialSyncAttempted.current = true;
-          seedAllToFirebase({
-            products,
-            vendors,
-            hospitals,
-            purchases,
-            invoices,
-            challans,
-            storeProfile,
-            users,
-          }).catch((err) => {
-            console.warn('Initial seed to Firebase note:', err);
-          });
+    const hydrateFallbackFromCache = () => {
+      setProducts(readCustomLocalSlice<Product>(STORAGE_KEYS.PRODUCTS, initialProducts.map((p) => p.id)));
+      setVendors(readCustomLocalSlice<Vendor>(STORAGE_KEYS.VENDORS, initialVendors.map((v) => v.id)));
+      setHospitals(readCustomLocalSlice<Hospital>(STORAGE_KEYS.HOSPITALS, initialHospitals.map((h) => h.id)));
+      setPurchases(readCustomLocalSlice<PurchaseTransaction>(STORAGE_KEYS.PURCHASES, initialPurchases.map((p) => p.id)));
+      setInvoices(readCustomLocalSlice<SalesInvoice>(STORAGE_KEYS.INVOICES, initialSalesInvoices.map((i) => i.id)));
+      setChallans(readCustomLocalSlice<DeliveryChallan>(STORAGE_KEYS.CHALLANS, initialDeliveryChallans.map((c) => c.id)));
+    };
+
+    const loadAndSubscribe = async () => {
+      hasLoadedFromFirebaseRef.current = false;
+      setDataLoading(true);
+      setFirebaseStatus('connecting');
+      setFirebaseError(null);
+
+      // Guarantee dataLoading clears even if Firebase network calls stall
+      const safetyTimer = setTimeout(() => {
+        if (!isCancelled) {
+          hasLoadedFromFirebaseRef.current = true;
+          setDataLoading(false);
         }
-      },
-      (error: any) => {
-        console.warn('Firebase Firestore Connection note:', error);
-        setFirebaseStatus('error');
-        const isPermission = error?.message?.toLowerCase().includes('permission') || error?.code === 'permission-denied';
-        if (isPermission) {
-          setFirebaseError('Cloud Firestore Permission Denied. Please paste the Firestore Security Rules in Firebase Console → Firestore Database → Rules to allow saving.');
+      }, 6000);
+
+      // Attach real-time Cloud Firestore listener immediately so cached/live snapshots unlock UI fast
+      unsubscribeSnapshot = subscribeToFirebaseRealtime(
+        (data) => {
+          if (isCancelled || !data) return;
+          setFirebaseStatus('connected');
+          setFirebaseError(null);
+
+          if (data.storeProfile) setStoreProfile(data.storeProfile);
+          if (Array.isArray(data.products)) setProducts(data.products);
+          if (Array.isArray(data.vendors)) setVendors(data.vendors);
+          if (Array.isArray(data.hospitals)) setHospitals(data.hospitals);
+          if (Array.isArray(data.purchases)) setPurchases(data.purchases);
+          if (Array.isArray(data.invoices)) setInvoices(data.invoices);
+          if (Array.isArray(data.challans)) setChallans(data.challans);
+          if (Array.isArray(data.users) && data.users.length > 0) setUsers(data.users);
+
+          if (
+            data.storeProfile ||
+            Array.isArray(data.products) ||
+            Array.isArray(data.invoices) ||
+            Array.isArray(data.hospitals) ||
+            Array.isArray(data.users)
+          ) {
+            hasLoadedFromFirebaseRef.current = true;
+            setDataLoading(false);
+          }
+        },
+        (error: any) => {
+          if (isCancelled) return;
+          console.warn('Firebase Firestore Connection note:', error);
+          setFirebaseStatus('error');
+          const isPermission = error?.message?.toLowerCase().includes('permission') || error?.code === 'permission-denied';
+          if (isPermission) {
+            setFirebaseError('Cloud Firestore Permission Denied. Please verify Firestore Security Rules.');
+          } else {
+            setFirebaseError(error.message || 'Error connecting to Cloud Firestore');
+          }
+        }
+      );
+
+      try {
+        // Consolidated fetch & diagnostic recovery across main doc, section docs, collections, and RTDB
+        const snapshotRes = await fetchLatestFromFirebase();
+        if (isCancelled) return;
+
+        if (snapshotRes.success && snapshotRes.data) {
+          const remote = snapshotRes.data;
+          setFirebaseStatus('connected');
+
+          const remoteHasProducts = Array.isArray(remote.products);
+          const remoteHasVendors = Array.isArray(remote.vendors);
+          const remoteHasHospitals = Array.isArray(remote.hospitals);
+          const remoteHasPurchases = Array.isArray(remote.purchases);
+          const remoteHasInvoices = Array.isArray(remote.invoices);
+          const remoteHasChallans = Array.isArray(remote.challans);
+
+          // If Firestore doesn't have a slice yet, check if browser has genuine non-sample offline data to rescue
+          const resolvedProducts = remoteHasProducts
+            ? remote.products!
+            : readCustomLocalSlice<Product>(STORAGE_KEYS.PRODUCTS, initialProducts.map((p) => p.id));
+          const resolvedVendors = remoteHasVendors
+            ? remote.vendors!
+            : readCustomLocalSlice<Vendor>(STORAGE_KEYS.VENDORS, initialVendors.map((v) => v.id));
+          const resolvedHospitals = remoteHasHospitals
+            ? remote.hospitals!
+            : readCustomLocalSlice<Hospital>(STORAGE_KEYS.HOSPITALS, initialHospitals.map((h) => h.id));
+          const resolvedPurchases = remoteHasPurchases
+            ? remote.purchases!
+            : readCustomLocalSlice<PurchaseTransaction>(STORAGE_KEYS.PURCHASES, initialPurchases.map((p) => p.id));
+          const resolvedInvoices = remoteHasInvoices
+            ? remote.invoices!
+            : readCustomLocalSlice<SalesInvoice>(STORAGE_KEYS.INVOICES, initialSalesInvoices.map((i) => i.id));
+          const resolvedChallans = remoteHasChallans
+            ? remote.challans!
+            : readCustomLocalSlice<DeliveryChallan>(STORAGE_KEYS.CHALLANS, initialDeliveryChallans.map((c) => c.id));
+
+          const resolvedProfile = remote.storeProfile || initialStoreProfile;
+          const resolvedUsers =
+            Array.isArray(remote.users) && remote.users.length > 0
+              ? remote.users
+              : [initialUsers[0]];
+
+          // Update lastLoginAt for the signed-in user cleanly
+          const signedInEmail = currentUser.email?.trim().toLowerCase();
+          const syncedUsers = signedInEmail
+            ? resolvedUsers.map((u) =>
+                u.email.toLowerCase() === signedInEmail
+                  ? { ...u, lastLoginAt: new Date().toISOString() }
+                  : u
+              )
+            : resolvedUsers;
+
+          setStoreProfile(resolvedProfile);
+          setProducts(resolvedProducts);
+          setVendors(resolvedVendors);
+          setHospitals(resolvedHospitals);
+          setPurchases(resolvedPurchases);
+          setInvoices(resolvedInvoices);
+          setChallans(resolvedChallans);
+          setUsers(syncedUsers);
+
+          hasLoadedFromFirebaseRef.current = true;
+
+          // If main doc was missing or any custom offline slice was rescued, persist clean structure without sample data
+          const needsInitWrite =
+            !snapshotRes.mainDocExists ||
+            (!remoteHasProducts && resolvedProducts.length > 0) ||
+            (!remoteHasInvoices && resolvedInvoices.length > 0) ||
+            (!remoteHasHospitals && resolvedHospitals.length > 0);
+
+          if (needsInitWrite) {
+            seedAllToFirebase({
+              products: resolvedProducts,
+              vendors: resolvedVendors,
+              hospitals: resolvedHospitals,
+              purchases: resolvedPurchases,
+              invoices: resolvedInvoices,
+              challans: resolvedChallans,
+              storeProfile: resolvedProfile,
+              users: syncedUsers,
+            }).catch((err) => console.warn('Initial structure sync note:', err));
+          } else if (signedInEmail && syncedUsers.some((u) => u.email.toLowerCase() === signedInEmail)) {
+            writeToFirebase('users', syncedUsers).catch(() => {});
+          }
         } else {
-          setFirebaseError(error.message || 'Error connecting to Cloud Firestore');
+          setFirebaseStatus('error');
+          setFirebaseError(snapshotRes.error || 'Error connecting to Cloud Firestore');
+          hydrateFallbackFromCache();
+          hasLoadedFromFirebaseRef.current = true;
+        }
+      } catch (err: any) {
+        if (!isCancelled) {
+          setFirebaseStatus('error');
+          setFirebaseError(err?.message || 'Error loading Cloud Firestore data');
+          hydrateFallbackFromCache();
+          hasLoadedFromFirebaseRef.current = true;
+        }
+      } finally {
+        clearTimeout(safetyTimer);
+        if (!isCancelled) {
+          setDataLoading(false);
         }
       }
-    );
+    };
+
+    loadAndSubscribe();
 
     return () => {
-      if (unsubscribe) unsubscribe();
+      isCancelled = true;
+      if (unsubscribeSnapshot) unsubscribeSnapshot();
     };
-  }, [firebaseDatabaseUrl]);
+  }, [firebaseDatabaseUrl, isAdminAuthenticated, currentUser?.uid]);
 
   // Manual push all data to Firebase Realtime Database
   const syncToFirebaseNow = async (): Promise<boolean> => {
@@ -383,13 +511,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setFirebaseStatus('connected');
       setFirebaseError(null);
       if (res.data.storeProfile) setStoreProfile(res.data.storeProfile);
-      if (res.data.products && Array.isArray(res.data.products)) setProducts(res.data.products);
-      if (res.data.vendors && Array.isArray(res.data.vendors)) setVendors(res.data.vendors);
-      if (res.data.hospitals && Array.isArray(res.data.hospitals)) setHospitals(res.data.hospitals);
-      if (res.data.purchases && Array.isArray(res.data.purchases)) setPurchases(res.data.purchases);
-      if (res.data.invoices && Array.isArray(res.data.invoices)) setInvoices(res.data.invoices);
-      if (res.data.challans && Array.isArray(res.data.challans)) setChallans(res.data.challans);
-      if (res.data.users && Array.isArray(res.data.users) && res.data.users.length > 0) setUsers(res.data.users);
+      if (Array.isArray(res.data.products)) setProducts(res.data.products);
+      if (Array.isArray(res.data.vendors)) setVendors(res.data.vendors);
+      if (Array.isArray(res.data.hospitals)) setHospitals(res.data.hospitals);
+      if (Array.isArray(res.data.purchases)) setPurchases(res.data.purchases);
+      if (Array.isArray(res.data.invoices)) setInvoices(res.data.invoices);
+      if (Array.isArray(res.data.challans)) setChallans(res.data.challans);
+      if (Array.isArray(res.data.users) && res.data.users.length > 0) setUsers(res.data.users);
       return true;
     } else {
       setFirebaseStatus('error');
@@ -1034,6 +1162,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         users,
         isAdminAuthenticated,
         authLoading,
+        dataLoading,
         loginAdmin,
         registerAdmin,
         logoutAdmin,
