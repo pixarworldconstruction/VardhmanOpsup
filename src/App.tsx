@@ -23,15 +23,28 @@ import { InvoicePrintModal } from './components/sales/InvoicePrintModal';
 import { ChallanModal } from './components/challan/ChallanModal';
 import { ChallanPrintModal } from './components/challan/ChallanPrintModal';
 import { FirebaseSyncModal } from './components/FirebaseSyncModal';
-import { Flame } from 'lucide-react';
+import { AdminLoginScreen } from './components/auth/AdminLoginScreen';
+import { UserProfileModal } from './components/users/UserProfileModal';
+import { UserManagementModal } from './components/users/UserManagementModal';
+import { AdminProfileView } from './components/users/AdminProfileView';
+import { Flame, KeyRound, ShieldAlert, LogOut } from 'lucide-react';
 import { Product, Hospital, Vendor, SalesInvoice, DeliveryChallan } from './types';
 
-function MainApp() {
-  const { activeView, invoices, challans, firebaseStatus } = useApp();
+function AuthenticatedWorkspace() {
+  const {
+    activeView,
+    setActiveView,
+    invoices,
+    challans,
+    firebaseStatus,
+    activeUser,
+  } = useApp();
 
-  // Modal states
+  // Modal states (always called unconditionally in AuthenticatedWorkspace)
   const [isStoreModalOpen, setIsStoreModalOpen] = useState(false);
   const [isFirebaseModalOpen, setIsFirebaseModalOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isUsersModalOpen, setIsUsersModalOpen] = useState(false);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [productToEdit, setProductToEdit] = useState<Product | null>(null);
   const [isHospitalModalOpen, setIsHospitalModalOpen] = useState(false);
@@ -110,6 +123,8 @@ function MainApp() {
           onOpenNewChallan={() => setIsChallanModalOpen(true)}
           onOpenNewPurchase={() => setIsPurchaseModalOpen(true)}
           onOpenNewProduct={handleOpenNewProduct}
+          onOpenProfileModal={() => setIsProfileModalOpen(true)}
+          onOpenUsersModal={() => setIsUsersModalOpen(true)}
           isMobilePreview={isMobilePreview}
           setIsMobilePreview={setIsMobilePreview}
         />
@@ -124,6 +139,31 @@ function MainApp() {
 
           {/* Main Workspace Content */}
           <main className="flex-1 p-3 sm:p-6 pb-24 md:pb-8 max-w-7xl mx-auto w-full overflow-x-hidden">
+            {/* First-Time Password Update Reminder Banner */}
+            {activeUser?.isFirstLogin && activeView !== 'profile' && (
+              <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50/90 p-3.5 text-amber-950 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in">
+                <div className="flex items-start gap-2.5">
+                  <div className="p-1.5 rounded-lg bg-amber-600 text-white shrink-0 mt-0.5">
+                    <KeyRound className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-amber-950">
+                      First-Time Login: Change Your Temporary Password
+                    </p>
+                    <p className="text-[11px] text-amber-900/80 mt-0.5">
+                      You are currently using an admin-assigned temporary password. Update your profile and set your own private password.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setActiveView('profile')}
+                  className="shrink-0 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs px-3.5 py-1.5 transition shadow-2xs text-center"
+                >
+                  Open My Profile
+                </button>
+              </div>
+            )}
+
             {/* Firestore Setup Alert Banner */}
             {firebaseStatus === 'error' && (
               <div className="mb-4 rounded-xl border border-orange-200 bg-orange-50/90 p-3.5 text-orange-950 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in">
@@ -212,6 +252,10 @@ function MainApp() {
             )}
 
             {activeView === 'reports' && <ReportsView />}
+
+            {activeView === 'profile' && (
+              <AdminProfileView onOpenStoreModal={() => setIsStoreModalOpen(true)} />
+            )}
           </main>
         </div>
 
@@ -231,6 +275,18 @@ function MainApp() {
           isOpen={isFirebaseModalOpen}
           onClose={() => setIsFirebaseModalOpen(false)}
         />
+
+        <UserProfileModal
+          isOpen={isProfileModalOpen}
+          onClose={() => setIsProfileModalOpen(false)}
+        />
+
+        {activeUser?.role === 'admin' && (
+          <UserManagementModal
+            isOpen={isUsersModalOpen}
+            onClose={() => setIsUsersModalOpen(false)}
+          />
+        )}
 
         <ProductModal
           isOpen={isProductModalOpen}
@@ -294,6 +350,56 @@ function MainApp() {
       </div>
     </div>
   );
+}
+
+function MainApp() {
+  const { isAdminAuthenticated, authLoading, activeUser, logoutAdmin } = useApp();
+
+  // If Firebase Auth is checking session
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-teal-600 text-white font-extrabold text-2xl shadow-xl animate-pulse mb-4">
+          VO
+        </div>
+        <p className="text-sm font-bold text-slate-800">Vardhman Opsup</p>
+        <p className="text-xs text-slate-500 mt-1">Verifying secure Firebase session...</p>
+      </div>
+    );
+  }
+
+  // If not authenticated, require Login
+  if (!isAdminAuthenticated) {
+    return <AdminLoginScreen />;
+  }
+
+  // If user account has been suspended by Admin
+  if (activeUser && activeUser.isActive === false) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-md rounded-2xl bg-white border border-rose-200 shadow-xl p-6 text-center space-y-4">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-100 text-rose-600">
+            <ShieldAlert className="w-7 h-7" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">Account Suspended</h2>
+            <p className="text-xs text-slate-500 mt-1">
+              Your access for <strong className="font-mono text-slate-700">{activeUser.email}</strong> has been suspended by the system administrator. Please contact your administrator to reactivate your profile.
+            </p>
+          </div>
+          <button
+            onClick={logoutAdmin}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white px-5 py-2.5 text-xs font-bold shadow-xs transition"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Sign Out</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return <AuthenticatedWorkspace />;
 }
 
 export default function App() {

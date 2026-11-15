@@ -1,4 +1,4 @@
-import { Product, Vendor, Hospital, PurchaseTransaction, SalesInvoice, DeliveryChallan, StoreProfile } from '../types';
+import { Product, Vendor, Hospital, PurchaseTransaction, SalesInvoice, DeliveryChallan, StoreProfile, AppUser } from '../types';
 
 export const initialStoreProfile: StoreProfile = {
   name: "Vardhman Opsup",
@@ -647,4 +647,42 @@ export const initialDeliveryChallans: DeliveryChallan[] = [
     remarks: "Awaiting invoice generation after OT tally.",
     createdAt: "2026-03-24T09:15:00Z"
   }
+];
+
+export const initialUsers: AppUser[] = [
+  {
+    id: "usr-admin-1",
+    email: "arcline02@gmail.com",
+    name: "Arcline Admin",
+    role: "admin",
+    phone: "+91 98250 88412",
+    designation: "Principal Administrator & Operations Head",
+    isActive: true,
+    isFirstLogin: false,
+    createdAt: "2026-01-01T00:00:00Z",
+  },
+  {
+    id: "usr-staff-1",
+    email: "ramesh.ops@vardhmanopsup.com",
+    name: "Ramesh Sharma",
+    role: "manager",
+    phone: "+91 98791 22345",
+    designation: "Hospital Store & Dispatch Manager",
+    temporaryPassword: "temp#user123",
+    isActive: true,
+    isFirstLogin: true,
+    createdAt: "2026-02-15T09:30:00Z",
+  },
+  {
+    id: "usr-billing-1",
+    email: "pooja.billing@vardhmanopsup.com",
+    name: "Pooja Mehta",
+    role: "billing",
+    phone: "+91 94280 44512",
+    designation: "GST & Tax Invoice Officer",
+    temporaryPassword: "bill#pass456",
+    isActive: true,
+    isFirstLogin: true,
+    createdAt: "2026-03-01T11:00:00Z",
+  },
 ];

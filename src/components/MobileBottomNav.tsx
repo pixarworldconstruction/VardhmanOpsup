@@ -8,10 +8,11 @@ import {
   Building2,
   Users2,
   BarChart3,
+  UserCog,
 } from 'lucide-react';
 
 export const MobileBottomNav: React.FC = () => {
-  const { activeView, setActiveView, lowStockProducts, invoices } = useApp();
+  const { activeView, setActiveView, lowStockProducts, invoices, activeUser } = useApp();
 
   const navItems = [
     { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
@@ -28,8 +29,13 @@ export const MobileBottomNav: React.FC = () => {
       alert: invoices.some((i) => i.paymentStatus !== 'Paid'),
     },
     { id: 'challans', label: 'Challan', icon: Truck },
-    { id: 'hospitals', label: 'Hospitals', icon: Building2 },
     { id: 'reports', label: 'Reports', icon: BarChart3 },
+    {
+      id: 'profile',
+      label: activeUser?.role === 'admin' ? 'Admin' : 'Profile',
+      icon: UserCog,
+      alert: !!activeUser?.isFirstLogin,
+    },
   ];
 
   return (

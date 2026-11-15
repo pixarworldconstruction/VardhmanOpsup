@@ -11,6 +11,7 @@ import {
   BarChart3,
   AlertTriangle,
   Store,
+  ShieldCheck,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -24,9 +25,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenStoreModal }) => {
     lowStockProducts,
     invoices,
     challans,
-    products,
     hospitals,
     vendors,
+    activeUser,
+    users,
   } = useApp();
 
   const navItems = [
@@ -132,6 +134,41 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenStoreModal }) => {
                 </button>
               );
             })}
+          </nav>
+        </div>
+
+        {/* Account & Access Section */}
+        <div>
+          <div className="px-3 pb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+            Account & Access
+          </div>
+          <nav className="space-y-1">
+            <button
+              onClick={() => setActiveView('profile')}
+              className={`w-full flex items-center justify-between rounded-xl px-3 py-2.5 text-xs font-semibold transition-all ${
+                activeView === 'profile'
+                  ? 'bg-teal-50 text-teal-800 shadow-2xs font-bold border border-teal-100'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <ShieldCheck
+                  className={`w-4 h-4 transition-colors ${
+                    activeView === 'profile' ? 'text-teal-600' : 'text-slate-400'
+                  }`}
+                />
+                <span>{activeUser?.role === 'admin' ? 'Admin Profile & Users' : 'My Profile'}</span>
+              </div>
+              {activeUser?.role === 'admin' ? (
+                <span className="rounded-full px-2 py-0.5 text-[10px] font-medium border bg-purple-50 text-purple-700 border-purple-200">
+                  {users.length}
+                </span>
+              ) : activeUser?.isFirstLogin ? (
+                <span className="rounded-full px-2 py-0.5 text-[10px] font-medium border bg-amber-50 text-amber-700 border-amber-200">
+                  Update Pass
+                </span>
+              ) : null}
+            </button>
           </nav>
         </div>
 

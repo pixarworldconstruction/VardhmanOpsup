@@ -25,35 +25,40 @@ const FIRESTORE_RULES = `rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Vardhman Opsup - Medical & Operation Material Suppliers
-    // Full Add (create), View (read), Edit (update), and Delete permissions
+    // Vardhman Opsup - Secure Admin Rules (Authenticated Users Only)
+    function isAuthenticated() {
+      return request.auth != null;
+    }
 
     match /vardhman_opsup/{document=**} {
-      allow read, create, update, delete: if true;
+      allow read, create, update, delete: if isAuthenticated();
     }
     match /products/{document=**} {
-      allow read, create, update, delete: if true;
+      allow read, create, update, delete: if isAuthenticated();
     }
     match /invoices/{document=**} {
-      allow read, create, update, delete: if true;
+      allow read, create, update, delete: if isAuthenticated();
     }
     match /challans/{document=**} {
-      allow read, create, update, delete: if true;
+      allow read, create, update, delete: if isAuthenticated();
     }
     match /purchases/{document=**} {
-      allow read, create, update, delete: if true;
+      allow read, create, update, delete: if isAuthenticated();
     }
     match /hospitals/{document=**} {
-      allow read, create, update, delete: if true;
+      allow read, create, update, delete: if isAuthenticated();
     }
     match /vendors/{document=**} {
-      allow read, create, update, delete: if true;
+      allow read, create, update, delete: if isAuthenticated();
     }
     match /storeProfile/{document=**} {
-      allow read, create, update, delete: if true;
+      allow read, create, update, delete: if isAuthenticated();
+    }
+    match /users/{document=**} {
+      allow read, create, update, delete: if isAuthenticated();
     }
     match /{document=**} {
-      allow read, create, update, delete: if true;
+      allow read, create, update, delete: if isAuthenticated();
     }
   }
 }`;

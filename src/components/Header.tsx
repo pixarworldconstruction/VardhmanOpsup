@@ -13,6 +13,9 @@ import {
   Download,
   Database,
   CloudCheck,
+  LogOut,
+  UserCheck,
+  Users,
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -22,6 +25,8 @@ interface HeaderProps {
   onOpenNewChallan: () => void;
   onOpenNewPurchase: () => void;
   onOpenNewProduct: () => void;
+  onOpenProfileModal: () => void;
+  onOpenUsersModal: () => void;
   isMobilePreview: boolean;
   setIsMobilePreview: (val: boolean) => void;
 }
@@ -33,6 +38,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenNewChallan,
   onOpenNewPurchase,
   onOpenNewProduct,
+  onOpenProfileModal,
+  onOpenUsersModal,
   isMobilePreview,
   setIsMobilePreview,
 }) => {
@@ -42,6 +49,9 @@ export const Header: React.FC<HeaderProps> = ({
     setActiveView,
     exportDatabase,
     firebaseStatus,
+    currentUser,
+    activeUser,
+    logoutAdmin,
   } = useApp();
 
   return (
@@ -164,6 +174,46 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Download className="w-4 h-4" />
           </button>
+
+          {/* Admin Team User Management Button */}
+          {activeUser?.role === 'admin' && (
+            <button
+              onClick={onOpenUsersModal}
+              className="flex items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-700 px-2 sm:px-2.5 py-1.5 text-xs font-semibold transition shadow-2xs"
+              title="Admin Staff Management: Add/Edit/Delete users and set temporary passwords"
+            >
+              <Users className="w-3.5 h-3.5 text-purple-600" />
+              <span className="hidden sm:inline">Users</span>
+            </button>
+          )}
+
+          {/* User Profile & Secure Logout */}
+          <div className="flex items-center gap-1.5 pl-1 border-l border-slate-200 ml-1">
+            <button
+              onClick={onOpenProfileModal}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 text-xs transition"
+              title="Click to view and edit your profile or update your password"
+            >
+              <UserCheck className="w-3.5 h-3.5 text-teal-600" />
+              <div className="text-left hidden lg:block">
+                <span className="font-semibold block truncate max-w-[130px] leading-tight">
+                  {activeUser?.name || currentUser?.email || 'User'}
+                </span>
+                <span className="text-[10px] text-slate-500 font-medium block leading-tight">
+                  {activeUser?.role?.toUpperCase() || 'USER'} • Edit Profile
+                </span>
+              </div>
+            </button>
+
+            <button
+              onClick={logoutAdmin}
+              className="flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 px-2 py-1.5 text-xs font-semibold transition shadow-2xs"
+              title="Secure Sign Out from Portal"
+            >
+              <LogOut className="w-3.5 h-3.5 text-rose-600" />
+              <span className="hidden sm:inline">Logout</span>
+            </button>
+          </div>
         </div>
       </div>
     </header>

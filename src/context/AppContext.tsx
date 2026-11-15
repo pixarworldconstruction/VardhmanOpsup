@@ -7,6 +7,8 @@ import {
   SalesInvoice,
   DeliveryChallan,
   StoreProfile,
+  AdminAuthUser,
+  AppUser,
 } from '../types';
 import {
   initialStoreProfile,
@@ -16,6 +18,7 @@ import {
   initialPurchases,
   initialSalesInvoices,
   initialDeliveryChallans,
+  initialUsers,
 } from '../data/initialData';
 import { isNearExpiry } from '../utils/formatters';
 import {
@@ -25,9 +28,35 @@ import {
   fetchLatestFromFirebase,
   getStoredDatabaseUrl,
   setStoredDatabaseUrl,
+  signInAdmin,
+  createAdminUser,
+  provisionUserWithSecondaryApp,
+  signOutAdmin,
+  subscribeToAuth,
+  updateUserAuthPassword,
+  updateUserAuthDisplayName,
 } from '../services/firebase';
 
 interface AppContextType {
+  // Authentication & User state
+  currentUser: AdminAuthUser | null;
+  activeUser: AppUser | null;
+  users: AppUser[];
+  isAdminAuthenticated: boolean;
+  authLoading: boolean;
+  loginAdmin: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
+  registerAdmin: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
+  logoutAdmin: () => Promise<void>;
+  addUser: (user: Omit<AppUser, 'id' | 'createdAt'>) => Promise<{ success: boolean; error?: string }>;
+  updateUser: (user: AppUser) => void;
+  deleteUser: (id: string) => void;
+  updateCurrentProfile: (data: {
+    name: string;
+    phone?: string;
+    designation?: string;
+    newPassword?: string;
+  }) => Promise<{ success: boolean; error?: string }>;
+
   products: Product[];
   vendors: Vendor[];
   hospitals: Hospital[];
@@ -90,6 +119,7 @@ const STORAGE_KEYS = {
   PURCHASES: 'vo_purchases_v1',
   INVOICES: 'vo_invoices_v1',
   CHALLANS: 'vo_challans_v1',
+  USERS: 'vo_users_v1',
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -128,7 +158,99 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : initialDeliveryChallans;
   });
 
+  const [users, setUsers] = useState<AppUser[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.USERS);
+    return saved ? JSON.parse(saved) : initialUsers;
+  });
+
   const [activeView, setActiveView] = useState<string>('dashboard');
+
+  // Authentication state
+  const [currentUser, setCurrentUser] = useState<AdminAuthUser | null>(null);
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
+  const [authLoading, setAuthLoading] = useState<boolean>(true);
+
+  // Subscribe to Firebase Auth state
+  useEffect(() => {
+    const unsub = subscribeToAuth((user) => {
+      if (user) {
+        setCurrentUser({
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName || user.email?.split('@')[0],
+        });
+        setIsAdminAuthenticated(true);
+      } else {
+        setCurrentUser(null);
+        setIsAdminAuthenticated(false);
+      }
+      setAuthLoading(false);
+    });
+
+    return () => {
+      if (unsub) unsub();
+    };
+  }, []);
+
+  const loginAdmin = async (email: string, pass: string): Promise<{ success: boolean; error?: string }> => {
+    const res = await signInAdmin(email, pass);
+    if (res.success && res.user) {
+      const normalizedEmail = (res.user.email || email).trim().toLowerCase();
+      setCurrentUser({
+        uid: res.user.uid,
+        email: res.user.email,
+        displayName: res.user.displayName || res.user.email?.split('@')[0],
+      });
+      setIsAdminAuthenticated(true);
+      setUsers((prev) => {
+        const idx = prev.findIndex((u) => u.email.toLowerCase() === normalizedEmail);
+        if (idx === -1) return prev;
+        const updated = prev.map((u, i) =>
+          i === idx ? { ...u, lastLoginAt: new Date().toISOString() } : u
+        );
+        writeToFirebase('users', updated);
+        return updated;
+      });
+      return { success: true };
+    }
+    return { success: false, error: res.error };
+  };
+
+  const registerAdmin = async (email: string, pass: string): Promise<{ success: boolean; error?: string }> => {
+    const res = await createAdminUser(email, pass);
+    if (res.success && res.user) {
+      setCurrentUser({
+        uid: res.user.uid,
+        email: res.user.email,
+        displayName: res.user.displayName || res.user.email?.split('@')[0],
+      });
+      setIsAdminAuthenticated(true);
+      return { success: true };
+    }
+    return { success: false, error: res.error };
+  };
+
+  const logoutAdmin = async (): Promise<void> => {
+    await signOutAdmin();
+    setCurrentUser(null);
+    setIsAdminAuthenticated(false);
+    setActiveView('dashboard');
+  };
+
+  // Currently active user record
+  const isPrimaryAdminEmail = currentUser?.email?.toLowerCase() === 'arcline02@gmail.com';
+  const activeUser: AppUser | null = currentUser
+    ? users.find((u) => u.email.toLowerCase() === currentUser.email?.toLowerCase()) || {
+        id: currentUser.uid,
+        email: currentUser.email || '',
+        name: currentUser.displayName || (isPrimaryAdminEmail ? 'Arcline Admin' : 'Team Member'),
+        role: isPrimaryAdminEmail ? 'admin' : 'staff',
+        designation: isPrimaryAdminEmail ? 'Principal Administrator & Operations Head' : 'Team Member',
+        isActive: true,
+        isFirstLogin: false,
+        createdAt: new Date().toISOString(),
+      }
+    : null;
 
   // Firebase Realtime Database status
   const [firebaseStatus, setFirebaseStatus] = useState<'connecting' | 'connected' | 'error' | 'offline'>('connecting');
@@ -166,6 +288,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(STORAGE_KEYS.CHALLANS, JSON.stringify(challans));
   }, [challans]);
 
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+  }, [users]);
+
   // Subscribe to Firebase Realtime Database
   useEffect(() => {
     setFirebaseStatus('connecting');
@@ -178,7 +304,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const hasRemoteData = data && (
           (Array.isArray(data.products) && data.products.length > 0) ||
           (Array.isArray(data.vendors) && data.vendors.length > 0) ||
-          (Array.isArray(data.hospitals) && data.hospitals.length > 0)
+          (Array.isArray(data.hospitals) && data.hospitals.length > 0) ||
+          (Array.isArray(data.users) && data.users.length > 0)
         );
 
         if (hasRemoteData) {
@@ -189,6 +316,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (data.purchases) setPurchases(data.purchases);
           if (data.invoices) setInvoices(data.invoices);
           if (data.challans) setChallans(data.challans);
+          if (Array.isArray(data.users) && data.users.length > 0) setUsers(data.users);
         } else if (!isInitialSyncAttempted.current) {
           // Empty Realtime Database on first connect: seed initial catalog & profile!
           isInitialSyncAttempted.current = true;
@@ -200,6 +328,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             invoices,
             challans,
             storeProfile,
+            users,
           }).catch((err) => {
             console.warn('Initial seed to Firebase note:', err);
           });
@@ -233,6 +362,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       invoices,
       challans,
       storeProfile,
+      users,
     });
     if (res.success) {
       setFirebaseStatus('connected');
@@ -259,6 +389,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (res.data.purchases && Array.isArray(res.data.purchases)) setPurchases(res.data.purchases);
       if (res.data.invoices && Array.isArray(res.data.invoices)) setInvoices(res.data.invoices);
       if (res.data.challans && Array.isArray(res.data.challans)) setChallans(res.data.challans);
+      if (res.data.users && Array.isArray(res.data.users) && res.data.users.length > 0) setUsers(res.data.users);
       return true;
     } else {
       setFirebaseStatus('error');
@@ -689,6 +820,125 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     writeToFirebase('storeProfile', profile);
   };
 
+  // ===================== USER MANAGEMENT & PROFILE =====================
+  const addUser = async (item: Omit<AppUser, 'id' | 'createdAt'>): Promise<{ success: boolean; error?: string }> => {
+    const emailNormalized = item.email.trim().toLowerCase();
+    if (users.some((u) => u.email.toLowerCase() === emailNormalized)) {
+      return { success: false, error: 'A user with this email address already exists.' };
+    }
+
+    // If first-time password provided, provision in Firebase Auth using secondary app
+    // so the Admin stays logged in!
+    if (item.temporaryPassword && item.temporaryPassword.trim().length >= 6) {
+      const authRes = await provisionUserWithSecondaryApp(
+        emailNormalized,
+        item.temporaryPassword.trim(),
+        item.name.trim()
+      );
+      if (!authRes.success) {
+        return {
+          success: false,
+          error: authRes.error || 'Failed to register user credentials in Firebase Auth.',
+        };
+      }
+    }
+
+    const newUser: AppUser = {
+      ...item,
+      email: emailNormalized,
+      id: `usr-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+
+    setUsers((prev) => {
+      const list = [...prev, newUser];
+      writeToFirebase('users', list);
+      return list;
+    });
+
+    return { success: true };
+  };
+
+  const updateUser = (updated: AppUser) => {
+    setUsers((prev) => {
+      const list = prev.map((u) => (u.id === updated.id ? updated : u));
+      writeToFirebase('users', list);
+      return list;
+    });
+  };
+
+  const deleteUser = (id: string) => {
+    const target = users.find((u) => u.id === id);
+    if (target?.email.toLowerCase() === 'arcline02@gmail.com') {
+      return; // Protect primary super admin
+    }
+    setUsers((prev) => {
+      const list = prev.filter((u) => u.id !== id);
+      writeToFirebase('users', list);
+      return list;
+    });
+  };
+
+  const updateCurrentProfile = async (data: {
+    name: string;
+    phone?: string;
+    designation?: string;
+    newPassword?: string;
+  }): Promise<{ success: boolean; error?: string }> => {
+    if (!currentUser || !currentUser.email) {
+      return { success: false, error: 'User is not currently authenticated' };
+    }
+
+    if (data.newPassword && data.newPassword.trim().length >= 6) {
+      const passResult = await updateUserAuthPassword(data.newPassword.trim());
+      if (!passResult.success) {
+        return { success: false, error: passResult.error || 'Failed to update password in Firebase Auth' };
+      }
+    }
+
+    await updateUserAuthDisplayName(data.name.trim());
+    setCurrentUser((prev) =>
+      prev ? { ...prev, displayName: data.name.trim() } : prev
+    );
+
+    setUsers((prev) => {
+      const existing = prev.find((u) => u.email.toLowerCase() === currentUser.email?.toLowerCase());
+      let list: AppUser[];
+      if (existing) {
+        list = prev.map((u) =>
+          u.email.toLowerCase() === currentUser.email?.toLowerCase()
+            ? {
+                ...u,
+                name: data.name.trim(),
+                phone: data.phone?.trim() ?? u.phone,
+                designation: data.designation?.trim() ?? u.designation,
+                temporaryPassword: data.newPassword ? undefined : u.temporaryPassword,
+                isFirstLogin: data.newPassword ? false : u.isFirstLogin,
+              }
+            : u
+        );
+      } else {
+        const isPrimary = currentUser.email?.toLowerCase() === 'arcline02@gmail.com';
+        const newProf: AppUser = {
+          id: currentUser.uid,
+          email: currentUser.email!,
+          name: data.name.trim(),
+          phone: data.phone?.trim() || '',
+          designation: data.designation?.trim() || (isPrimary ? 'Principal Administrator' : 'Team Member'),
+          role: isPrimary ? 'admin' : 'staff',
+          isActive: true,
+          isFirstLogin: false,
+          createdAt: new Date().toISOString(),
+        };
+        list = [...prev, newProf];
+      }
+      writeToFirebase('users', list);
+      return list;
+    });
+
+    return { success: true };
+  };
+
   // ===================== BACKUP & RESET =====================
   const resetToSampleData = () => {
     setStoreProfile(initialStoreProfile);
@@ -698,6 +948,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPurchases(initialPurchases);
     setInvoices(initialSalesInvoices);
     setChallans(initialDeliveryChallans);
+    setUsers(initialUsers);
 
     seedAllToFirebase({
       storeProfile: initialStoreProfile,
@@ -707,6 +958,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       purchases: initialPurchases,
       invoices: initialSalesInvoices,
       challans: initialDeliveryChallans,
+      users: initialUsers,
     });
   };
 
@@ -719,6 +971,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       purchases,
       invoices,
       challans,
+      users,
       exportDate: new Date().toISOString(),
       version: '1.0',
     };
@@ -742,6 +995,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (data.purchases) setPurchases(data.purchases);
         if (data.invoices) setInvoices(data.invoices);
         if (data.challans) setChallans(data.challans);
+        if (data.users && Array.isArray(data.users)) setUsers(data.users);
 
         seedAllToFirebase({
           storeProfile: data.storeProfile || storeProfile,
@@ -751,6 +1005,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           purchases: data.purchases || purchases,
           invoices: data.invoices || invoices,
           challans: data.challans || challans,
+          users: data.users || users,
         });
         return true;
       }
@@ -774,6 +1029,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         nearExpiryProducts,
         activeView,
         setActiveView,
+        currentUser,
+        activeUser,
+        users,
+        isAdminAuthenticated,
+        authLoading,
+        loginAdmin,
+        registerAdmin,
+        logoutAdmin,
+        addUser,
+        updateUser,
+        deleteUser,
+        updateCurrentProfile,
         addProduct,
         updateProduct,
         deleteProduct,

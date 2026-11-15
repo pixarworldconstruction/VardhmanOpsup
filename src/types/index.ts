@@ -219,3 +219,26 @@ export interface StoreProfile {
   upiId: string;
   terms: string[];
 }
+
+export interface AdminAuthUser {
+  uid: string;
+  email: string | null;
+  displayName?: string | null;
+  role?: UserRole;
+}
+
+export type UserRole = 'admin' | 'manager' | 'staff' | 'billing';
+
+export interface AppUser {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  phone?: string;
+  designation?: string;
+  temporaryPassword?: string;
+  isFirstLogin?: boolean;
+  isActive: boolean;
+  createdAt: string;
+  lastLoginAt?: string;
+}

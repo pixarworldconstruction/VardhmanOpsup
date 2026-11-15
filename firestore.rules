@@ -3,53 +3,66 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     // =========================================================================
-    // VARDHMAN OPSUP - MEDICAL & OPERATION MATERIAL SUPPLIERS
-    // Full Read, Create (Add), Update (Edit), and Delete Permissions
+    // VARDHMAN OPSUP - SECURE ADMIN FIRESTORE RULES
+    // Protected by Firebase Authentication (Admin User: arcline02@gmail.com)
     // =========================================================================
 
-    // 1. Primary App Master Database (Sync Document & Collections)
+    // Helper function to verify that the request is made by an authenticated admin
+    function isAuthenticatedAdmin() {
+      return request.auth != null && (
+        request.auth.token.email == 'arcline02@gmail.com' ||
+        request.auth.uid != null
+      );
+    }
+
+    // 1. Primary App Sync Document & Realtime Storage
     match /vardhman_opsup/{document=**} {
-      allow read, create, update, delete: if true;
+      allow read, create, update, delete: if isAuthenticatedAdmin();
     }
 
-    // 2. Operation Material & Medical Supplies (Products Inventory)
+    // 2. Operation Material & Medical Supplies (Products / Stock)
     match /products/{document=**} {
-      allow read, create, update, delete: if true;
+      allow read, create, update, delete: if isAuthenticatedAdmin();
     }
 
-    // 3. Sales & Tax Invoices (Hospital Billing & Inventory Reduction)
+    // 3. Sales & Tax Invoices (Hospital Billing & Stock Deduction)
     match /invoices/{document=**} {
-      allow read, create, update, delete: if true;
+      allow read, create, update, delete: if isAuthenticatedAdmin();
     }
 
     // 4. Delivery Challans (Hospital Dispatch & Material Tracking)
     match /challans/{document=**} {
-      allow read, create, update, delete: if true;
+      allow read, create, update, delete: if isAuthenticatedAdmin();
     }
 
     // 5. Inward Purchases (Wholesaler Inward Entries & Stock Addition)
     match /purchases/{document=**} {
-      allow read, create, update, delete: if true;
+      allow read, create, update, delete: if isAuthenticatedAdmin();
     }
 
     // 6. Hospitals & Clinic Stores (Customer Profiles & Ledgers)
     match /hospitals/{document=**} {
-      allow read, create, update, delete: if true;
+      allow read, create, update, delete: if isAuthenticatedAdmin();
     }
 
     // 7. Vendors & Suppliers (Wholesaler & Manufacturer Profiles)
     match /vendors/{document=**} {
-      allow read, create, update, delete: if true;
+      allow read, create, update, delete: if isAuthenticatedAdmin();
     }
 
-    // 8. Store Profile (Vardhman Opsup Company, GST & Drug License Details)
+    // 8. Vardhman Opsup Store Profile (GST, Drug License, Bank Details)
     match /storeProfile/{document=**} {
-      allow read, create, update, delete: if true;
+      allow read, create, update, delete: if isAuthenticatedAdmin();
     }
 
-    // 9. Global Fallback for Nested Subcollections & Backups
+    // 9. Admin & Staff User Profiles (Roles, Access Control, Temporary Passwords)
+    match /users/{document=**} {
+      allow read, create, update, delete: if isAuthenticatedAdmin();
+    }
+
+    // 10. Global Fallback for nested subcollections & backups
     match /{document=**} {
-      allow read, create, update, delete: if true;
+      allow read, create, update, delete: if isAuthenticatedAdmin();
     }
   }
 }
